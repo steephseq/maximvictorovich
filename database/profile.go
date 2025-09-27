@@ -38,10 +38,12 @@ func GetGroupProfile(chatOBJ chatsModels.Chat) (profileModels.GroupProfile, erro
 		COUNT(cu.user_id)  OVER() AS count_members,
 		u.id,
 		u.name,
-		c.name
+		c.name,
+		a.url
 		FROM chats c
 		JOIN chats_users cu ON cu.chat_id=c.id 
 		JOIN users u ON u.id=cu.user_id
+		LEFT JOIN avatars a ON a.owner_id=c.id
 		WHERE c.id=$1;
 		`
 
@@ -54,12 +56,17 @@ func GetGroupProfile(chatOBJ chatsModels.Chat) (profileModels.GroupProfile, erro
 
 	for rows.Next() {
 		var (
-			count int
-			user  usersModels.User
+			count     int
+			user      usersModels.User
+			avatarURL sql.NullString
 		)
 
-		if err := rows.Scan(&count, &user.ID, &user.Name, &gp.Name); err != nil {
+		if err := rows.Scan(&count, &user.ID, &user.Name, &gp.Name, &gp.AvatarURL); err != nil {
 			return gp, err
+		}
+
+		if avatarURL.Valid {
+			gp.AvatarURL = avatarURL
 		}
 
 		gp.Members = append(gp.Members, user)
