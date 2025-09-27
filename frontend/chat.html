@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat</title>
+<link rel="stylesheet" href="css/chat.css">
+</head>
+<body>
+<div class="chat-container">
+    <div class="chat-header">
+        <button id="backBtn">← Back</button>
+        <h2 id="chatTitle"></h2>
+    </div>
+
+    <div id="messages" class="messages"></div>
+
+    <form id="messageForm" class="chat-input">
+    <input type="text" id="messageInput" placeholder="Type a message">
+    <input type="file" id="fileInput" accept="image/*"> <!-- Новое поле для фото -->
+    <button type="submit" id="sendBtn">Send</button>
+</form>
+
+</div>
+
+<script src="js/chat.js"></script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat Profile</title>
+<link rel="stylesheet" href="css/profile.css">
+
+</head>
+<body>
+<div class="profile-container">
+    
+    <button id="backBtn">← Back</button>
+
+    <!-- Аватар -->
+    <div id="groupAvatarContainer" class="avatar-container">
+        <img id="groupAvatarImg" src="/img/default-group.png" alt="Avatar" class="avatar-img">
+        <button id="changeAvatarBtn" class="avatar-btn">Изменить аватар</button>
+    </div>
+
+    <h2 id="profileTitle">Profile</h2>
+    <div id="profileContent"></div>
+
+    <!-- Добавление пользователей (только для групп) -->
+    <div id="addUsersSection">
+        <h3>Add users to chat</h3>
+        <input type="text" id="searchUserInput" placeholder="Search users to add">
+        <ul id="searchResults"></ul>
+        <h4>Selected users:</h4>
+        <ul id="selectedUsersList"></ul>
+        <button id="addUsersBtn">Add to chat</button>
+        <p id="addUsersMessage"></p>
+    </div>
+
+    <!-- Удаление пользователей (только для групп) -->
+    <div id="removeUsersSection">
+        <h3>Remove users from chat</h3>
+        <ul id="removeUsersList"></ul>
+        <button id="removeUsersBtn">Remove selected users</button>
+        <p id="removeUsersMessage"></p>
+    </div>
+</div>
+
+<script src="js/profile.js"></script>
+</body>
+</html>

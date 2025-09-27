@@ -1,0 +1,154 @@
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f2f2f2;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.chat-container {
+    background-color: #ffffff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    width: 100%;
+    max-width: 500px;
+    display: flex;
+    flex-direction: column;
+    height: 80vh;
+}
+
+.chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+#chatTitle {
+    text-align: center;
+    flex: 1;
+    cursor: pointer;
+}
+
+.messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    margin-bottom: 10px;
+}
+
+/* Основной стиль сообщений */
+.message {
+    position: relative;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    border-radius: 10px;
+    max-width: 70%;
+    word-wrap: break-word;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Сообщения пользователя */
+.message.self {
+    background-color: #0088cc;
+    color: white;
+    align-self: flex-end;
+}
+
+/* Сообщения собеседника */
+.message.other {
+    background-color: #e6e6e6;
+    color: black;
+    align-self: flex-start;
+}
+
+/* Кнопка "троеточие" для меню */
+.menu-btn {
+    display: none;
+    cursor: pointer;
+    padding: 0 5px;
+}
+
+/* Показываем кнопку при наведении */
+.message:hover .menu-btn {
+    display: inline;
+}
+
+.chat-input {
+    display: flex;
+    gap: 10px;
+}
+
+.chat-input input {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+}
+
+.chat-input button {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 8px;
+    background-color: #0088cc;
+    color: white;
+    cursor: pointer;
+}
+
+.chat-input button:hover {
+    background-color: #0077b3;
+}
+
+#backBtn {
+    padding: 5px 10px;
+    border: none;
+    border-radius: 8px;
+    background-color: #ff4d4d;
+    color: white;
+    cursor: pointer;
+}
+
+#backBtn:hover {
+    background-color: #e60000;
+}
+
+/* Контекстное меню */
+#contextMenu {
+    position: absolute;
+    display: none;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    z-index: 100;
+}
+
+#contextMenu button {
+    border: none;
+    background: none;
+    padding: 8px 12px;
+    text-align: left;
+    cursor: pointer;
+    width: 100%;
+}
+
+#contextMenu button:hover {
+    background: #f0f0f0;
+}
+
+.message img {
+    max-width: 200px;
+    border-radius: 8px;
+    display: block;
+    margin-top: 6px;
+}

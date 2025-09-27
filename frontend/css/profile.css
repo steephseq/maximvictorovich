@@ -1,0 +1,119 @@
+/* --- Основные контейнеры --- */
+.profile-container {
+    max-width: 600px;
+    margin: 20px auto;
+    padding: 16px;
+    font-family: Arial, sans-serif;
+}
+
+button {
+    cursor: pointer;
+}
+
+/* --- Аватарка --- */
+.avatar-container {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 16px;
+}
+
+.avatar-img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #ccc;
+    transition: 0.3s all;
+}
+
+/* Кнопка изменить аватар (скрыта по умолчанию, видна при hover) */
+.avatar-btn {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0,0,0,0.6);
+    color: #fff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    display: none;
+}
+
+/* Появление кнопки при hover */
+.avatar-container:hover .avatar-btn {
+    display: block;
+}
+
+/* --- Заголовки --- */
+#profileTitle {
+    text-align: center;
+    margin-bottom: 12px;
+}
+
+/* --- Секции пользователей --- */
+#addUsersSection, #removeUsersSection {
+    margin-top: 24px;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+#addUsersSection h3, #removeUsersSection h3 {
+    margin-top: 0;
+}
+
+/* --- Списки пользователей --- */
+#searchResults, #selectedUsersList, #removeUsersList {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0;
+}
+
+#searchResults li, #selectedUsersList li, #removeUsersList li {
+    padding: 6px 8px;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    cursor: pointer;
+    transition: 0.2s background;
+}
+
+#searchResults li:hover, #selectedUsersList li:hover, #removeUsersList li:hover {
+    background-color: #f0f0f0;
+}
+
+/* --- Кнопки добавить/удалить --- */
+#addUsersBtn, #removeUsersBtn {
+    margin-top: 8px;
+    padding: 8px 16px;
+    border: none;
+    background-color: #007bff;
+    color: #fff;
+    border-radius: 6px;
+    transition: 0.2s background;
+}
+
+#addUsersBtn:hover, #removeUsersBtn:hover {
+    background-color: #0056b3;
+}
+
+/* --- Сообщения статуса --- */
+#addUsersMessage, #removeUsersMessage {
+    margin-top: 8px;
+    font-size: 14px;
+    color: #555;
+}
+
+/* --- Адаптивность --- */
+@media (max-width: 480px) {
+    .profile-container {
+        padding: 12px;
+    }
+    .avatar-container {
+        width: 100px;
+        height: 100px;
+    }
+}
