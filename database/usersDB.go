@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	cloudModels "mess/models/cloudModels"
 	usersModels "mess/models/usersModels"
@@ -70,7 +71,8 @@ func UpdateAvatar(avatar cloudModels.Avatar) error {
 
 	query = `INSERT INTO avatars (url,owner_type,owner_id,is_current,created_at)
 				VALUES (:url,:owner_type,:owner_id,:is_current,:created_at)`
-
+	avatar.IsCurrent = true
+	avatar.CreatedAt = time.Now()
 	_, err = DB.NamedExec(query, avatar)
 	return err
 }
