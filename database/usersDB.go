@@ -61,6 +61,7 @@ func AddUser(u *usersModels.User) error {
 	return nil
 }
 
+// for safasf
 func UpdateAvatar(avatar cloudModels.Avatar) error {
 	query := `UPDATE avatars SET is_current=false 
 			WHERE owner_type=$1 AND owner_id=$2`
