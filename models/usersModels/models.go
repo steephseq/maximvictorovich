@@ -9,6 +9,7 @@ type User struct {
 	Email    string         `json:"email" db:"email"`
 	Password string         `json:"password" db:"password"`
 	Bio      sql.NullString `json:"bio" db:"bio"`
+	Avatar   string         `json:"url" db:"url"`
 }
 
 type UserLogin struct {
@@ -22,7 +23,8 @@ type AdminRoots struct {
 	Title             sql.NullString `json:"title" db:"title"`
 	CanDeleteMessages bool           `json:"can_delete_messages" db:"can_delete_messages"`
 	CanBanUsers       bool           `json:"can_ban_users" db:"can_ban_users"`
-	CanEditChatInfo   bool           `json:"can_edit_chat_info" db:"can_edit_chat_info"`
 	CanManageRoles    bool           `json:"can_manage_roles" db:"can_manage_roles"`
 	CanChangeAvatar   bool           `json:"can_change_avatar" db:"can_change_avatar"`
+	CanChangeBio      bool           `json:"can_change_bio" db:"can_change_bio"`
+	CanChangeName     bool           `json:"can_change_name" db:"can_change_name"`
 }

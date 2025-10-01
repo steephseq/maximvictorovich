@@ -19,6 +19,6 @@ func ShowChatsHandler(w http.ResponseWriter, r *http.Request) {
 		services.ResponseFunc(w, http.StatusInternalServerError, "failed to get chats", nil)
 		return
 	}
-	log.Printf("successful get chats for hp")
+
 	services.ResponseFunc(w, http.StatusOK, "successful get chats", chats)
 }

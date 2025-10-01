@@ -61,7 +61,7 @@ func SetAvatarHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := r.Context().Value(JWTModels.UserIDKey).(uint)
-	if avatar.OwnerType == "chat" {
+	if avatar.OwnerType != "chat" {
 		canChangeAvatar, err := database.CanUserX(int(userID), avatar.OwnerID, "can_change_avatar")
 		if err != nil {
 			log.Println(err)
@@ -81,5 +81,6 @@ func SetAvatarHandler(w http.ResponseWriter, r *http.Request) {
 		services.ResponseFunc(w, http.StatusInternalServerError, "failed to update user avatar", nil)
 		return
 	}
+
 	services.ResponseFunc(w, http.StatusOK, "successful new avatar", map[string]string{"url": url})
 }

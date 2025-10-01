@@ -9,19 +9,23 @@ import (
 )
 
 type Message struct {
-	ID        int       `json:"id" db:"id"`
-	ChatId    int       `json:"chat_id" db:"chat_id"`
-	UserId    int       `json:"user_id" db:"user_id"`
-	Name      string    `json:"name" db:"name"` //name msg author in chat
-	Content   string    `json:"content" db:"content"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	ID           int            `json:"id" db:"id"`
+	ChatId       int            `json:"chat_id" db:"chat_id"`
+	UserId       int            `json:"user_id" db:"user_id"`
+	Name         string         `json:"name" db:"name"` //name msg author in chat
+	Content      string         `json:"content" db:"content"`
+	CreatedAt    time.Time      `json:"created_at" db:"created_at"`
+	ThumbnailUrl sql.NullString `json:"thumbnail_url" db:"thumbnail_url"`
 }
 
 type Chat struct {
-	ID         int            `json:"id" db:"id"`
-	Name       sql.NullString `json:"name" db:"name"`
-	Is_group   bool           `json:"is_group" db:"is_group"`
-	Updated_at time.Time      `json:"updated_at" db:"updated_at"`
+	ID          int            `json:"id" db:"id"`
+	Name        *string        `json:"name" db:"name"`
+	Is_group    bool           `json:"is_group" db:"is_group"`
+	Updated_at  *time.Time     `json:"updated_at" db:"updated_at"`
+	LastMessage *string        `json:"last_message" db:"last_message"`
+	AvatarURL   *string        `json:"url" db:"url"`
+	Bio         sql.NullString `json:"bio" db:"bio"`
 }
 
 type CreateChatRequest struct {
@@ -30,6 +34,7 @@ type CreateChatRequest struct {
 	Is_group   bool      `json:"is_group" db:"is_group"`
 	Updated_at time.Time `json:"updated_at" db:"updated_at"`
 	Users      []int     `json:"users"`
+	Avatar     string    `json:"url" db:"url"`
 }
 
 type AddUsers struct {

@@ -50,18 +50,41 @@ func GetUserNameByID(uid int) (string, error) {
 }
 
 func AddUser(u *usersModels.User) error {
-	query := `INSERT INTO users (username,name,email,password)
-				VALUES (:username,:name,:email,:password)`
-
-	_, err := DB.NamedExec(query, u)
+	tx, err := DB.Begin()
 	if err != nil {
-		log.Println("failed to add user into db /database/usersDB")
-		return fmt.Errorf("failed to add user into db, error: %v", err.Error())
+		return err
+	}
+	defer tx.Rollback()
+	query := `INSERT INTO users (email,name,password,username)
+				VALUES ($1,$2,$3,$4)
+				RETURNING id`
+	if err := DB.QueryRow(query, u.Email, u.Name, u.Password, u.UserName).Scan(&u.ID); err != nil {
+		log.Printf("failed to add user into db,error:%v", err)
+		return err
+	}
+
+	if u.Avatar == "" {
+		setDefaultUserAvatar(u)
+	}
+
+	query = `INSERT INTO avatars (url,is_group,owner_id,is_current)
+			VALUES ($1,$2,$3,$4)`
+	_, err = DB.Exec(query, u.Avatar, false, u.ID, true)
+	if err != nil {
+		log.Printf("u.avatar error (user_id=%d):%v", u.ID, err)
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	return nil
 }
 
-// for safasf
+func setDefaultUserAvatar(u *usersModels.User) {
+	u.Avatar = "https://i.pinimg.com/736x/a2/d0/5c/a2d05c22f5e18e15385ece62b92ae9c8.jpg"
+}
+
 func UpdateAvatar(avatar cloudModels.Avatar) error {
 	query := `UPDATE avatars SET is_current=false 
 			WHERE owner_type=$1 AND owner_id=$2`

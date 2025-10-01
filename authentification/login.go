@@ -15,6 +15,7 @@ import (
 )
 
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("Login handler trigged")
 	w.Header().Set("Content-type", "application/json")
 	if r.Method != http.MethodPost {
 		log.Printf("method not allowed")
@@ -55,5 +56,5 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fmt.Println("user login successfully\n" + token)
-	services.ResponseFunc(w, http.StatusOK, "user login successfully", token)
+	services.ResponseFunc(w, http.StatusOK, "user login successfully", map[string]string{"token": token})
 }

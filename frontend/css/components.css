@@ -1,0 +1,375 @@
+/* Компонент профиля группы */
+.group-profile {
+    background: rgba(255, 253, 250, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius-3xl);
+    box-shadow: var(--shadow-xl);
+    width: 100%;
+    max-width: 42rem;
+    animation: scaleIn 0.5s ease-out;
+}
+
+/* Шапка профиля */
+.profile-header {
+    position: relative;
+}
+
+.header-background {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: var(--radius-3xl) var(--radius-3xl) 0 0;
+    height: 8rem;
+}
+
+.avatar-container {
+    position: absolute;
+    bottom: -3rem;
+    left: 2rem;
+}
+
+.avatar-image {
+    width: 6rem;
+    height: 6rem;
+    background: var(--white);
+    border-radius: var(--radius-2xl);
+    border: 4px solid var(--white);
+    box-shadow: var(--shadow-lg);
+    object-fit: cover;
+}
+
+/* Контент профиля */
+.profile-content {
+    padding: 4rem 2rem 2rem 2rem;
+}
+
+.profile-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+}
+
+.info-main {
+    flex: 1;
+}
+
+.group-name {
+    font-size: 1.875rem;
+    font-weight: bold;
+    color: var(--gray-800);
+    margin-bottom: 0.5rem;
+    line-height: 1.2;
+}
+
+.member-count {
+    display: flex;
+    align-items: center;
+    color: var(--gray-600);
+}
+
+.count-icon {
+    margin-right: 0.5rem;
+}
+
+.count-text {
+    font-weight: 500;
+}
+
+.edit-btn {
+    background: var(--amber-500);
+    color: var(--white);
+    padding: 0.75rem 1.5rem;
+    border-radius: var(--radius-xl);
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+.edit-btn:hover {
+    background: var(--amber-600);
+    transform: translateY(-1px);
+}
+
+.btn-icon {
+    margin-right: 0.5rem;
+}
+
+/* Секция описания */
+.bio-section {
+    background: var(--amber-50);
+    border-left: 4px solid var(--amber-400);
+    padding: 1rem;
+    border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+    margin-bottom: 2rem;
+}
+
+.bio-text {
+    color: var(--gray-700);
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* Секция поиска */
+.search-section {
+    margin-bottom: 2rem;
+    position: relative;
+}
+
+.search-container {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.search-input-group {
+    position: relative;
+    flex: 1;
+}
+
+.search-input {
+    width: 100%;
+    padding: 1rem 1.5rem;
+    background: var(--white);
+    border-radius: var(--radius-xl);
+    border: 2px solid var(--gray-200);
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--amber-400);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+}
+
+.search-icon {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--gray-400);
+}
+
+.add-btn {
+    background: var(--green-500);
+    color: var(--white);
+    padding: 1rem 1.5rem;
+    border-radius: var(--radius-xl);
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+.add-btn:hover {
+    background: var(--green-600);
+    transform: translateY(-1px);
+}
+
+/* Результаты поиска */
+.search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 0.5rem;
+    background: var(--white);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--gray-200);
+    z-index: 10;
+    max-height: 15rem;
+    overflow-y: auto;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: all 0.3s ease;
+    pointer-events: none;
+}
+
+.search-container:focus-within .search-results {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: all;
+}
+
+/* Секция участников */
+.members-section {
+    animation: fadeIn 0.6s ease-out;
+}
+
+.section-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--gray-800);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+}
+
+.title-icon {
+    margin-right: 0.75rem;
+    color: var(--amber-500);
+}
+
+.members-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;  /* ← Вместо space-y используем gap */
+}
+/* Карточка участника */
+.member-card {
+    background: var(--white);
+    border-radius: var(--radius-xl);
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s ease;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.member-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.member-info {
+    display: flex;
+    align-items: center;
+}
+
+.member-avatar {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 1rem;
+}
+
+.member-name {
+    font-weight: 500;
+    color: var(--gray-800);
+}
+
+.member-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.action-btn {
+    padding: 0.5rem;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: transparent;
+}
+
+.action-btn:hover {
+    transform: scale(1.1);
+}
+
+.btn-message {
+    color: var(--blue-500);
+}
+
+.btn-message:hover {
+    color: var(--blue-600);
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.btn-remove {
+    color: var(--red-500);
+}
+
+.btn-remove:hover {
+    color: var(--red-600);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    body {
+        padding: 0.5rem;
+    }
+    
+    .profile-content {
+        padding: 3rem 1rem 1rem 1rem;
+    }
+    
+    .profile-info {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .edit-btn {
+        align-self: stretch;
+        text-align: center;
+    }
+    
+    .search-container {
+        flex-direction: column;
+    }
+    
+    .avatar-container {
+        left: 1rem;
+        bottom: -2rem;
+    }
+    
+    .avatar-image {
+        width: 4rem;
+        height: 4rem;
+    }
+    
+    .group-name {
+        font-size: 1.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .member-card {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+    
+    .member-info {
+        flex-direction: column;
+    }
+    
+    .member-avatar {
+        margin-right: 0;
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Добавить в components.css */
+.hidden {
+    display: none !important;
+}
+
+.message-btn {
+    background: #3b82f6;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.message-btn:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+}
+
+.username-section {
+    display: flex;
+    align-items: center;
+    color: #6b7280;
+}

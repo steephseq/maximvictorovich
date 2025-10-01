@@ -1,14 +1,19 @@
 package profile
 
 import (
+	"fmt"
 	"log"
 	"mess/database"
 	chatsModels "mess/models/chatsModels"
+	profileModels "mess/models/profileModels"
+	JWTModels "mess/models/services/jwt"
+	usersModels "mess/models/usersModels"
 	"mess/services"
 	"net/http"
 )
 
 func OpenProfile(w http.ResponseWriter, r *http.Request) {
+	log.Println("profile handler trigged")
 	if r.Method != http.MethodPost {
 		services.MethodNotAllowed(w, r)
 		return
@@ -18,28 +23,61 @@ func OpenProfile(w http.ResponseWriter, r *http.Request) {
 	if err := services.DecodeRequest(w, r, &profileOBJRequest); err != nil {
 		return
 	}
-
-	responseProfile(profileOBJRequest, w)
+	log.Println(profileOBJRequest)
+	responseProfile(profileOBJRequest, w, r)
 }
 
-func responseProfile(profileOBJRequest chatsModels.Chat, w http.ResponseWriter) {
+func responseProfile(profileOBJRequest chatsModels.Chat, w http.ResponseWriter, r *http.Request) {
 	var err error
-	var result interface{}
-
+	var resultUser usersModels.User
+	var resultGroup profileModels.GroupProfile
 	if profileOBJRequest.Is_group {
-		result, err = database.GetGroupProfile(profileOBJRequest)
+		resultGroup, err = database.GetGroupProfile(profileOBJRequest)
+		if err != nil {
+			log.Println(err)
+			services.ResponseFunc(w, http.StatusInternalServerError, "failed to get group profile", nil)
+			return
+		}
+		services.ResponseFunc(w, http.StatusOK, "successful", resultGroup)
+		return
 	} else {
-		result, err = database.GetUserProfile(profileOBJRequest.ID)
+		userIDuint := r.Context().Value(JWTModels.UserIDKey)
+		userID, ok := userIDuint.(uint)
+		if !ok {
+			services.ResponseFunc(w, http.StatusUnauthorized, "invalid token", nil)
+			return
+		}
+		uid, err := database.GetAnotherUserForProfile(profileOBJRequest.ID, int(userID))
+		if err != nil {
+			services.ResponseFunc(w, http.StatusInternalServerError, "failed to get user profile", nil)
+			return
+		}
+		resultUser, err = database.GetUserProfile(uid)
+		if err != nil {
+			log.Println(err)
+			if err == fmt.Errorf("user not found") {
+				resultUser.Name = "Deleted Account"
+			} else {
+				services.ResponseFunc(w, http.StatusInternalServerError, "failed to get user profile", nil)
+				return
+			}
+		}
+		services.ResponseFunc(w, http.StatusOK, "successful", resultUser)
 	}
+}
 
-	log.Printf("is group=%v", profileOBJRequest.Is_group)
-
-	if err != nil {
-		log.Printf("failed to get chatProfile,error:%v", err)
-		services.ResponseFunc(w, http.StatusInternalServerError, "failed to get profile", nil)
+func MyProfileHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		services.MethodNotAllowed(w, r)
 		return
 	}
 
-	log.Printf("successful get profile")
-	services.ResponseFunc(w, http.StatusOK, "successful get profile", result)
+	userID := r.Context().Value(JWTModels.UserIDKey).(uint)
+	u, err := database.GetMyProfileHP(int(userID))
+	if err != nil {
+		log.Printf("%v", err)
+		services.ResponseFunc(w, http.StatusInternalServerError, "failed get user profile", nil)
+		return
+	}
+	services.ResponseFunc(w, http.StatusOK, "successful get profile", u)
 }

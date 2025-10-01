@@ -43,7 +43,7 @@ func CreateChatHandler(w http.ResponseWriter, r *http.Request) {
 		ChatID:            chatID,
 		CanDeleteMessages: true,
 		CanBanUsers:       true,
-		CanEditChatInfo:   true,
+		CanChangeBio:      true,
 		CanManageRoles:    true,
 	}); err != nil {
 		log.Printf("failed to add admin,error:%v", err)
@@ -52,7 +52,6 @@ func CreateChatHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("successful add admin")
 
-	newChat.Users = append(newChat.Users, int(userID))
 	_, _, err = database.AddUserIntoChat(chatID, newChat.Users, r)
 	if err != nil {
 		log.Printf("failed to add user into,error:%v", err)
@@ -60,5 +59,12 @@ func CreateChatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("successful create chat")
-	services.ResponseFunc(w, http.StatusOK, "successful create chat", nil)
+
+	chat, err := database.GetChatByID(chatID)
+	if err != nil {
+		log.Println(err)
+		services.ResponseFunc(w, http.StatusInternalServerError, "failed to get chat", nil)
+		return
+	}
+	services.ResponseFunc(w, http.StatusOK, "successful create chat", chat)
 }

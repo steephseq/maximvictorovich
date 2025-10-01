@@ -23,6 +23,7 @@ func GetChatsForHP(r *http.Request) ([]chatsModels.Chat, error) {
 		log.Printf("failed to Get chats for home page,error:%v", err)
 		return nil, err
 	}
+
 	log.Printf("successful getChatsOnHomePage")
 	return chatsLst, nil
 }

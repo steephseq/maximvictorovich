@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Чаты - Mess</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/home.css">
+    <style>
+.header-action-btn[title="Поиск"] {
+    position: relative;
+}
+
+/* Индикатор хоткея */
+.header-action-btn[title="Поиск"]::after {
+    content: 'Ctrl+K';
+    position: absolute;
+    bottom: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.6rem;
+    color: #9ca3af;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.header-action-btn[title="Поиск"]:hover::after {
+    opacity: 1;
+}
+</style>
+</head>
+<body>
+    <div class="home-container">
+        <!-- Боковая панель -->
+        <div class="sidebar">
+            <!-- Заголовок -->
+            <div class="sidebar-header">
+                <div class="user-info">
+                    <img id="userAvatar" src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face" 
+                        alt="Аватар" class="user-avatar">
+                    <div class="user-details">
+                        <span id="userName" class="user-name">Пользователь</span>
+                        <span class="user-status">online</span>
+                    </div>
+                </div>
+                <button class="settings-btn" title="Настройки">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+
+            <!-- Поиск -->
+            <div class="search-container">
+                <div class="search-box">
+                    <i class="fas fa-search search-icon"></i>
+                    <input type="text" id="searchChats" placeholder="Поиск чатов..." class="search-input">
+                </div>
+                <button class="new-chat-btn" title="Новый чат">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+
+            <!-- Список чатов -->
+            <div class="chats-list" id="chatsList">
+                <!-- Чаты будут загружаться динамически -->
+            </div>
+        </div>
+
+        <!-- Основное содержание -->
+        <div class="main-content">
+            <!-- Приветственный экран -->
+            <div class="welcome-section" id="welcomeSection">
+                <div class="welcome-icon">
+                    <i class="fas fa-comments"></i>
+                </div>
+                <h1 class="welcome-title">Добро пожаловать в Mess</h1>
+                <p class="welcome-subtitle">Выберите чат чтобы начать общение</p>
+                <button class="start-chat-btn">
+                    <i class="fas fa-plus"></i> Начать новый чат
+                </button>
+            </div>
+
+            <!-- Окно чата (скрыто по умолчанию) -->
+            <div class="chat-section hidden" id="chatSection">
+                <!-- Заголовок чата -->
+                <div class="chat-header">
+                    <div class="chat-header-info">
+                        <button class="back-btn" id="backToChats">
+                            <i class="fas fa-arrow-left"></i>
+                        </button>
+                        <img id="currentChatAvatar" src="https://images.unsplash.com/photo-1494790108755-2616b612b786?w=50&h=50&fit=crop&crop=face" 
+                            alt="Аватар чата" class="chat-header-avatar">
+                        <div class="chat-header-details">
+                            <span id="currentChatName" class="chat-header-name">Имя чата</span>
+                            <span id="currentChatStatus" class="chat-header-status">online</span>
+                        </div>
+                    </div>
+                    <div class="chat-header-actions">
+                        <button class="header-action-btn" title="Поиск">
+                            <i class="fas fa-search"></i>
+                        </button>
+                        <button class="header-action-btn" title="Информация">
+                            <i class="fas fa-info-circle"></i>
+                        </button>
+                        <button class="header-action-btn" title="Меню">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Область сообщений -->
+                <div class="messages-container" id="messagesContainer">
+                    <div class="messages-list" id="messagesList">
+                        <!-- Сообщения будут добавляться динамически -->
+                    </div>
+                </div>
+
+                <!-- Панель ввода сообщения -->
+                <div class="message-input-container">
+                    <div class="message-input-wrapper">
+                        <button class="attachment-btn" title="Прикрепить файл">
+                            <i class="fas fa-paperclip"></i>
+                        </button>
+                        <div class="message-input-box">
+                            <textarea id="messageInput" placeholder="Введите сообщение..." 
+                                    rows="1" class="message-input"></textarea>
+                            <button class="emoji-btn" title="Эмодзи">
+                                <i class="fas fa-smile"></i>
+                            </button>
+                        </div>
+                        <button class="send-btn" id="sendMessageBtn" title="Отправить">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="dist/home.js"></script>
+</body>
+</html>

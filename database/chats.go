@@ -7,46 +7,118 @@ import (
 	models "mess/models/services/jwt"
 	usersModels "mess/models/usersModels"
 	"net/http"
+	"sort"
 	"strings"
-	"time"
 
 	"github.com/lib/pq"
 )
 
 func GetChatsOnHomePage(uid int) ([]chatsModels.Chat, error) {
 	var chatLst []chatsModels.Chat
-	query := `SELECT
-					c.id,
-					MAX(c.updated_at) AS updated_at,
-					c.is_group,
-					CASE 
-							WHEN c.is_group THEN c.name
-							ELSE COALESCE(MAX(u.username), '')
-					END AS name
-				FROM chats c
-				JOIN chats_users cu on cu.chat_id=c.id
-				LEFT JOIN chats_users cu2 ON cu2.chat_id=c.id AND cu2.user_id <> $1
-				LEFT JOIN users u on u.id=cu2.user_id
-				WHERE cu.user_id=$1
-				GROUP BY c.id, c.is_group, c.name;
-					`
-	err := DB.Select(&chatLst, query, uid)
-	return chatLst, err
+	var groupChats []chatsModels.Chat
+	var personalChats []chatsModels.Chat
+
+	query := `SELECT DISTINCT
+			c.id,
+			c.is_group,
+			u.username AS name,
+			m.content AS last_message,
+			COALESCE(m.created_at, c.updated_at) AS updated_at,
+			a_user.url AS url
+		FROM chats c
+		JOIN chats_users cu ON cu.chat_id = c.id AND cu.user_id = $1
+		JOIN chats_users cu_other ON cu_other.chat_id = c.id AND cu_other.user_id != $1
+		JOIN users u ON u.id = cu_other.user_id
+		LEFT JOIN avatars a_user ON a_user.owner_id = u.id AND a_user.is_group = false AND a_user.is_current = true
+		LEFT JOIN LATERAL (
+			SELECT content, created_at
+			FROM messages 
+			WHERE chat_id = c.id 
+			ORDER BY created_at DESC 
+			LIMIT 1
+		) m ON true
+		WHERE c.is_group = false`
+
+	err1 := DB.Select(&personalChats, query, uid)
+
+	query = `SELECT DISTINCT
+    c.id,
+    c.is_group,
+    c.name,
+    m.content AS last_message,
+    COALESCE(m.created_at, c.updated_at) AS updated_at,
+    a_group.url AS url
+FROM chats c
+JOIN chats_users cu ON cu.chat_id = c.id AND cu.user_id = $1
+LEFT JOIN avatars a_group ON a_group.owner_id = c.id AND a_group.is_group = true AND a_group.is_current = true
+LEFT JOIN LATERAL (
+    SELECT content, created_at
+    FROM messages 
+    WHERE chat_id = c.id 
+    ORDER BY created_at DESC 
+    LIMIT 1
+) m ON true
+WHERE c.is_group = true`
+	err2 := DB.Select(&groupChats, query, uid)
+	if err1 != nil {
+		return chatLst, err1
+	}
+	if err2 != nil {
+		return chatLst, err2
+	}
+
+	chatLst = append(personalChats, groupChats...)
+	var validChats []chatsModels.Chat
+	var nilChats []chatsModels.Chat
+	for _, chat := range chatLst {
+		if chat.Updated_at != nil {
+			validChats = append(validChats, chat)
+		} else {
+			nilChats = append(nilChats, chat)
+		}
+	}
+
+	// Сортируй только валидные чаты
+	sort.Slice(validChats, func(i, j int) bool {
+		return validChats[i].Updated_at.After(*validChats[j].Updated_at)
+	})
+
+	// Добавь чаты без даты в конец (или начало)
+	allChats := append(validChats, nilChats...)
+	return allChats, nil
 }
 
 func CreateChat(c chatsModels.CreateChatRequest) (int, error) {
-	c.Updated_at = time.Now()
-	query := `INSERT INTO chats (name,is_group,updated_at)
-				VALUES ($1,$2,$3)
-				RETURNING ID`
+	if c.Avatar == "" {
+		setDefaulAvatar(&c)
+	}
 	var chatID int
-	if err := DB.QueryRow(query, c.Name, c.Is_group, c.Updated_at).Scan(&chatID); err != nil {
+
+	query := `INSERT INTO chats (name,is_group)
+				VALUES ($1,$2)
+				RETURNING id`
+	if err := DB.QueryRow(query, c.Name, c.Is_group).Scan(&chatID); err != nil {
 		log.Printf("failed to create chat or get id,error:%v", err)
 		return 0, err
+	}
+
+	query = `INSERT INTO avatars (url,is_group,owner_id,is_current)
+			VALUES ($1,$2,$3,$4)`
+	_, err := DB.Exec(query, c.Avatar, c.Is_group, chatID, true)
+	if err != nil {
+		log.Println("failed create chat", err)
+		return chatID, err
 	}
 	return chatID, nil
 }
 
+func setDefaulAvatar(c *chatsModels.CreateChatRequest) {
+	if c.Is_group {
+		c.Avatar = "https://storage.yandexcloud.net/imagesmaxim/avatars/group.jpg"
+	} else {
+		c.Avatar = "https://storage.yandexcloud.net/imagesmaxim/avatars/1x1.jpg"
+	}
+}
 func AddUserIntoChat(chatID int, userIDs []int, r *http.Request) (added []int, alreadyExists []int, err error) {
 	query := "INSERT INTO chats_users (chat_id,user_id) VALUES "
 	if len(userIDs) == 0 {
@@ -110,17 +182,18 @@ func GetChatsByUserID(uid int) ([]chatsModels.Chat, error) {
 	return userChats, err
 }
 
-func ChatExists121ByUsers(uid int, uid2 int) (bool, error) {
-	query := `SELECT EXISTS(
-			SELECT 1 
+func ChatExists121ByUsers(uid int, uid2 int) (int, error) {
+	query := `SELECT 
+			c.id
 			FROM chats c 
 			JOIN chats_users cu ON cu.chat_id=c.id
 			JOIN chats_users cu2 ON cu2.chat_id=c.id
-			WHERE c.is_group=false AND cu.user_id=$1 AND cu2.user_id=$2 )`
-	var exists bool
+			WHERE c.is_group=false AND cu.user_id=$1 AND cu2.user_id=$2
+			LIMIT 1 `
+	var chatID int
 
-	err := DB.Get(&exists, query, uid, uid2)
-	return exists, err
+	err := DB.Get(&chatID, query, uid, uid2)
+	return chatID, err
 }
 
 func ChatExistsByID(chatID uint64) (bool, error) {
@@ -131,7 +204,17 @@ func ChatExistsByID(chatID uint64) (bool, error) {
 
 func GetMessages(chatID uint64) ([]chatsModels.Message, error) {
 	var messagesList []chatsModels.Message
-	err := DB.Select(&messagesList, "SELECT m.id,u.name,m.chat_id,m.user_id,m.content,m.created_at FROM messages m JOIN users u ON m.user_id=u.id WHERE chat_id=$1", chatID)
+	err := DB.Select(&messagesList, `SELECT 
+		m.id,u.name,
+		m.chat_id,
+		m.user_id,
+		m.content,
+		m.thumbnail_url,
+		m.created_at 
+		FROM messages m 
+		JOIN users u ON m.user_id=u.id 
+		WHERE chat_id=$1
+		ORDER BY m.created_at ASC`, chatID)
 	return messagesList, err
 }
 
@@ -180,8 +263,8 @@ func IsUserINChat(chatID int, userIDs []int) ([]int, error) {
 
 func AddAdmin(Admin usersModels.AdminRoots) error {
 	_, err := DB.NamedExec(`INSERT INTO chats_roles 
-				(user_id,chat_id,title,can_delete_messages,can_ban_users,can_edit_chat_info,can_manage_roles,can_change_avatar) 
-				VALUES (:user_id,:chat_id,:title,:can_delete_messages,:can_ban_users,:can_edit_chat_info,:can_manage_roles,:can_change_avatar)`, &Admin)
+				(user_id,chat_id,title,can_delete_messages,can_ban_users,can_manage_roles,can_change_avatar) 
+				VALUES (:user_id,:chat_id,:title,:can_delete_messages,:can_ban_users,:can_manage_roles,:can_change_avatar)`, &Admin)
 	return err
 }
 
@@ -190,10 +273,13 @@ func CanUserX(uid int, chatid int, action string) (bool, error) {
 	allowedActions := map[string]bool{
 		"can_delete_messages": true,
 		"can_ban_users":       true,
-		"can_edit_chat_info":  true,
 		"can_manage_roles":    true,
 		"can_change_avatar":   true,
+		"can_change_bio":      true,
+		"can_change_name":     true,
 	}
+
+	log.Println("action:", action)
 
 	if !allowedActions[action] {
 		return false, fmt.Errorf("invalid action")
@@ -202,6 +288,7 @@ func CanUserX(uid int, chatid int, action string) (bool, error) {
 	query := fmt.Sprintf(`SELECT %s FROM chats_roles WHERE user_id=$1 AND chat_id=$2`, action)
 	var exists bool
 	if err := DB.Get(&exists, query, uid, chatid); err != nil {
+		log.Println(err)
 		return false, err
 	}
 	return exists, nil
@@ -247,4 +334,108 @@ func GetAvailableMessageActions(uid int, chatid int, messid int) (chatsModels.Av
 		actions.CanEditMessage = false
 	}
 	return actions, nil
+}
+
+func GetChatByID(cid int) (chatsModels.Chat, error) {
+	query := `SELECT
+			c.id,
+			c.name,
+			c.is_group,
+			c.updated_at,
+			c.bio,
+			a.url
+			FROM chats c
+			JOIN avatars a on a.owner_id=c.id
+			WHERE c.id=$1 AND a.is_current=true`
+	var chat chatsModels.Chat
+	err := DB.Get(&chat, query, cid)
+	return chat, err
+}
+
+// func for  profile user from chat
+func GetAnotherUserForProfile(cid, uid int) (int, error) {
+	query := `SELECT
+		u.id
+		FROM chats_users cu
+		JOIN users u ON u.id=cu.user_id
+		WHERE cu.chat_id=$1 AND u.id<>$2`
+
+	var u int
+	if err := DB.Get(&u, query, cid, uid); err != nil {
+		return u, err
+	}
+	return u, nil
+}
+
+func DeleteChatForMe(cid, uid int) error {
+	query := `UPDATE chats_users 
+			SET is_hidden=false
+			WHERE chat_id=$1 AND user_id=$2`
+	_, err := DB.Exec(query, cid, uid)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func DeleteChat(cid int) error {
+	if err := DeleteChatHelper(cid, "chat_id", "chats_users"); err != nil {
+		return err
+	}
+	if err := DeleteChatHelper(cid, "chat_id", "messages"); err != nil {
+		return err
+	}
+	if err := DeleteChatHelper(cid, "id", "chats"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func DeleteChatHelper(cid int, columnName, tableName string) error {
+	if err := validateDeleteData(tableName, columnName); err != nil {
+		return err
+	}
+
+	query := `DELETE
+		FROM ` + tableName +
+		` WHERE ` + columnName + `=$1`
+	_, err := DB.Exec(query, cid)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateDeleteData(tableName, columnName string) error {
+	switch tableName {
+	case "chats_users":
+		switch columnName {
+		case "id":
+			return nil
+		case "chat_id":
+			return nil
+		default:
+			return fmt.Errorf("invalid column name")
+		}
+	case "messages":
+		switch columnName {
+		case "id":
+			return nil
+		case "chat_id":
+			return nil
+		default:
+			return fmt.Errorf("invalid column name")
+		}
+	case "chats":
+		switch columnName {
+		case "id":
+			return nil
+		case "chat_id":
+			return nil
+		default:
+			return fmt.Errorf("invalid column name")
+		}
+	default:
+		return fmt.Errorf("invalid delete action /DeleteChatHelper")
+	}
 }

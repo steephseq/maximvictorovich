@@ -6,6 +6,7 @@ import (
 	"mess/authentification"
 	"mess/chats"
 	"mess/cloud"
+	"mess/files"
 
 	"mess/profile"
 
@@ -35,7 +36,11 @@ func main() {
 	mux.Handle("/howCanIDoMessage", authentification.JWTMiddleware(http.HandlerFunc(chats.HowCanIDoWithMessageHandler)))
 	mux.Handle("/deleteMessage", authentification.JWTMiddleware(http.HandlerFunc(chats.DeleteMessageHandler)))
 	mux.Handle("/setAvatar", authentification.JWTMiddleware(http.HandlerFunc(cloud.SetAvatarHandler)))
-
+	mux.Handle("/myProfileHP", authentification.JWTMiddleware(http.HandlerFunc(profile.MyProfileHandler)))
+	mux.Handle("/setBio", authentification.JWTMiddleware(http.HandlerFunc(profile.SetBioHandler)))
+	mux.Handle("/uploadFile", authentification.JWTMiddleware(http.HandlerFunc(files.UploadFileHandler)))
+	mux.Handle("/setName", authentification.JWTMiddleware(http.HandlerFunc(profile.SetNameHandler)))
+	mux.Handle("/setUserName", authentification.JWTMiddleware(http.HandlerFunc(profile.SetUserNameHandler)))
 	mux.HandleFunc("/ws", chats.SendMessageHandler)
 
 	fs := http.FileServer(http.Dir("./frontend"))
@@ -43,7 +48,7 @@ func main() {
 
 	handler := services.WithCORS(mux)
 	log.Println("server is listening on :8080")
-	if err := http.ListenAndServe(":8080", handler); err != nil {
+	if err := http.ListenAndServeTLS(":8080", "localhost.crt", "localhost.key", handler); err != nil {
 		log.Fatal(err)
 	}
 }
