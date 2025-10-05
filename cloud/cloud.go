@@ -34,6 +34,5 @@ func UploadFile(ctx context.Context, s3Client *s3.Client, bucket string, file io
 		return "", fmt.Errorf("failed to upload file,%w", err)
 	}
 
-	url := fmt.Sprintf("https://storage.yandexcloud.net/%s/%s", bucket, key)
-	return url, nil
+	return key, nil
 }

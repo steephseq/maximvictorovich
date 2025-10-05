@@ -1,15 +1,18 @@
 package database
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	chatsModels "mess/models/chatsModels"
 	models "mess/models/services/jwt"
 	usersModels "mess/models/usersModels"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 
+	"github.com/joho/godotenv"
 	"github.com/lib/pq"
 )
 
@@ -209,24 +212,69 @@ func GetMessages(chatID uint64) ([]chatsModels.Message, error) {
 		m.chat_id,
 		m.user_id,
 		m.content,
-		m.thumbnail_url,
-		m.created_at 
-		FROM messages m 
-		JOIN users u ON m.user_id=u.id 
-		WHERE chat_id=$1
+		m.created_at,
+		m.is_ready,
+		m.type,
+		t.url
+		FROM messages m
+	    JOIN users u ON m.user_id=u.id
+		LEFT JOIN thumbnails t ON t.message_id=m.id 
+		WHERE chat_id=$1 AND m.is_ready=true
 		ORDER BY m.created_at ASC`, chatID)
+
+	if err := godotenv.Load(); err != nil {
+		log.Fatal(err)
+	}
+	baseURL := os.Getenv("CLOUD_URL")
+	if baseURL == "" {
+		return messagesList, errors.New("CLOUD_URL not found")
+	}
+
+	log.Println("before", messagesList)
+	for i := range messagesList {
+		if messagesList[i].Type == "video" || messagesList[i].Type == "image" {
+			messagesList[i].Content = baseURL + "messages/" + messagesList[i].Content
+		}
+		if messagesList[i].URL.Valid {
+			messagesList[i].URL.String = baseURL + "miniatures/" + messagesList[i].URL.String
+		}
+	}
+	log.Println(messagesList)
 	return messagesList, err
 }
 
-func SaveMessageToDB(msg chatsModels.Message) error {
-	_, err := DB.NamedExec("INSERT INTO messages (chat_id,user_id,content,created_at) VALUES (:chat_id,:user_id,:content,:created_at)", &msg)
+func SaveMessageToDB(msg chatsModels.Message) (int, error) {
+	var id int
+	rows, err := DB.NamedQuery(`INSERT 
+	INTO messages 
+	(chat_id,user_id,content,created_at,is_ready,type) 
+	VALUES (:chat_id,:user_id,:content,:created_at,:is_ready,:type)
+	RETURNING id`, &msg)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	if rows.Next() {
+		if err := rows.Scan(&id); err != nil {
+			return 0, err
+		}
+	}
+
 	log.Println(msg)
-	return err
+	return id, nil
 }
 
+func UpdateMessage(id int, filename string, isReady bool) error {
+	query := `UPDATE messages
+			SET content=$1, is_ready=$2
+			WHERE id=$3`
+	_, err := DB.Exec(query, filename, isReady, id)
+	return err
+}
 func DeleteUserFromChat(chatID int, userIDs []int) error {
 	query := `DELETE FROM chats_users
-				WHERE chat_id = $1 AND user_id= ANY($2)`
+			WHERE chat_id = $1 AND user_id = ANY($2)`
 
 	_, err := DB.Exec(query, chatID, pq.Array(userIDs))
 	return err

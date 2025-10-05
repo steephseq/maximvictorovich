@@ -29,7 +29,7 @@ func CreateJwt(uid uint) (string, error) {
 	expireHours, err := strconv.Atoi(os.Getenv("JWT_EXPIRE_HOURS"))
 
 	if err != nil {
-		log.Printf("failed to get expire hours,error:%v", err)
+		log.Printf("failed to get expire ours,error:%v", err)
 	}
 	claims := models.JWTClaims{
 		UserID: uid,

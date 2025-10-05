@@ -9,13 +9,15 @@ import (
 )
 
 type Message struct {
-	ID           int            `json:"id" db:"id"`
-	ChatId       int            `json:"chat_id" db:"chat_id"`
-	UserId       int            `json:"user_id" db:"user_id"`
-	Name         string         `json:"name" db:"name"` //name msg author in chat
-	Content      string         `json:"content" db:"content"`
-	CreatedAt    time.Time      `json:"created_at" db:"created_at"`
-	ThumbnailUrl sql.NullString `json:"thumbnail_url" db:"thumbnail_url"`
+	ID        int            `json:"id" db:"id"`
+	ChatId    int            `json:"chat_id" db:"chat_id"`
+	UserId    int            `json:"user_id" db:"user_id"`
+	Name      string         `json:"name" db:"name"` //name msg author in chat
+	Content   string         `json:"content" db:"content"`
+	CreatedAt time.Time      `json:"created_at" db:"created_at"`
+	URL       sql.NullString `json:"url" db:"url"`
+	IsReady   bool           `json:"is_ready" db:"is_ready"`
+	Type      string         `json:"type" db:"type"`
 }
 
 type Chat struct {

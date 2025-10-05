@@ -276,12 +276,15 @@ class WebSocketManager {
         }
     }
 
-    sendMessage(content: string): void {
+    sendMessage(content: string, type?: string): void {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            const message = {
+            const message: any = {
                 content: content,
                 chat_id: this.chatId
             };
+            if (type) {
+                message.type = type;
+            }
             this.ws.send(JSON.stringify(message));
         } else {
             throw new Error('WebSocket is not connected');
@@ -355,29 +358,95 @@ class FileUploader {
     private api: ProfileAPI;
     private onUploadComplete: (url: string, file: File) => void;
     private onUploadError: (error: string) => void;
+    private getChatId: () => number | null;
 
     constructor(
         api: ProfileAPI,
         onUploadComplete: (url: string, file: File) => void,
-        onUploadError: (error: string) => void
+        onUploadError: (error: string) => void,
+        getChatId: () => number | null
     ) {
         this.api = api;
         this.onUploadComplete = onUploadComplete;
         this.onUploadError = onUploadError;
+        this.getChatId = getChatId;
     }
 
-    async uploadFile(file: File): Promise<void> {
+    async uploadFile(file: File, progressCallback?: (messageId: number, progress: number) => void): Promise<void> {
         try {
             if (!this.api.validateFileSize(file, 1024)) {
                 throw new Error(`Файл слишком большой. Максимальный размер: 1024MB`);
             }
             
-            const fileUrl = await this.api.uploadFile(file);
-            this.onUploadComplete(fileUrl, file);
+            const fileType = this.api.getFileType(file);
+            const chatId = this.getChatId();
+            
+            if (!chatId) {
+                throw new Error('Чат не выбран');
+            }
+            
+            if (fileType === 'video') {
+                console.log('🎥 Загрузка видео: создаем пустое сообщение...');
+                const messageId = await this.api.createEmptyMessage(chatId, 'video');
+                console.log('✅ Пустое сообщение создано с ID:', messageId);
+                
+                // Создаем thumbnail локально
+                const thumbnail = await this.createVideoThumbnail(file);
+                
+                // Показываем сообщение с индикатором загрузки
+                if (progressCallback) {
+                    progressCallback(messageId, 0);
+                }
+                
+                console.log('📤 Загружаем видео файл...');
+                const fileUrl = await this.api.uploadFile(file, messageId);
+                console.log('✅ Видео загружено:', fileUrl);
+                
+                if (progressCallback) {
+                    progressCallback(messageId, 100);
+                }
+                
+                this.onUploadComplete(fileUrl, file);
+            } else {
+                const fileUrl = await this.api.uploadFile(file);
+                this.onUploadComplete(fileUrl, file);
+            }
 
         } catch (error: any) {
+            console.error('❌ Ошибка загрузки файла:', error);
             this.onUploadError(error.message || 'Не удалось загрузить файл');
         }
+    }
+
+    private async createVideoThumbnail(file: File): Promise<string> {
+        return new Promise((resolve) => {
+            const video = document.createElement('video');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            video.preload = 'metadata';
+            video.src = URL.createObjectURL(file);
+            
+            video.addEventListener('loadeddata', () => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                video.currentTime = 1; // Берем кадр с 1 секунды
+            });
+            
+            video.addEventListener('seeked', () => {
+                if (ctx) {
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const thumbnail = canvas.toDataURL('image/jpeg', 0.7);
+                    URL.revokeObjectURL(video.src);
+                    resolve(thumbnail);
+                }
+            });
+            
+            video.addEventListener('error', () => {
+                URL.revokeObjectURL(video.src);
+                resolve('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjMzczODNkIi8+CjxwYXRoIGQ9Ik0xNjAgMTI1VjE3NUwyMDAgMTUwTDE2MCAxMjVaIiBmaWxsPSIjNjE2MTZiIi8+Cjwvc3ZnPg==');
+            });
+        });
     }
 
     createFileInput(accept: string = '*'): HTMLInputElement {
@@ -480,7 +549,8 @@ class HomeManager {
         this.fileUploader = new FileUploader(
             this.api,
             (url: string, file: File) => this.onFileUploadComplete(url, file),
-            (error: string) => this.showError(error)
+            (error: string) => this.showError(error),
+            () => this.currentChat?.id || null
         );
     }
 
@@ -526,7 +596,7 @@ class HomeManager {
         }
         
         if (this.wsManager) {
-            this.wsManager.sendMessage(messageContent);
+            this.wsManager.sendMessage(messageContent, fileType);
             const shortDescription = this.getFileShortDescription(fileType, file.name);
             this.updateChatPosition(this.currentChat!.id, shortDescription);
         }
@@ -1022,40 +1092,66 @@ class HomeManager {
     // Проверяем, есть ли видео
     const videoUrl = this.extractVideoUrl(message.content);
     if (videoUrl) {
-        const thumbnailUrl = message.thumbnail_url || '';
+        const thumbnailUrl = message.thumbnail_url || message.url || '';
 
         const videoContainer = document.createElement("div");
         videoContainer.className = "message-video relative cursor-pointer inline-block";
+        videoContainer.dataset.videoUrl = videoUrl;
+        videoContainer.dataset.messageId = message.id.toString();
 
         const thumbnail = document.createElement("img");
         thumbnail.src = thumbnailUrl;
         thumbnail.alt = "Видео превью";
-        thumbnail.className = "w-32 h-20 object-cover rounded-md";
+        thumbnail.className = "video-thumbnail";
+        thumbnail.loading = "lazy"; // Ленивая загрузка thumbnail
         thumbnail.onerror = () => {
             thumbnail.src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjMzczODNkIi8+CjxwYXRoIGQ9Ik0xNjAgMTI1VjE3NUwyMDAgMTUwTDE2MCAxMjVaIiBmaWxsPSIjNjE2MTZiIi8+Cjwvc3ZnPg==";
         };
 
+        // Оверлей с кнопкой play
+        const overlay = document.createElement("div");
+        overlay.className = "video-overlay";
+        overlay.innerHTML = '<i class="fas fa-play-circle"></i>';
+
+        // Индикатор загрузки (скрыт по умолчанию)
+        const loadingIndicator = document.createElement("div");
+        loadingIndicator.className = "video-loading-indicator hidden";
+        loadingIndicator.innerHTML = `
+            <div class="spinner"></div>
+            <div class="loading-progress">0%</div>
+        `;
+
         const durationSpan = document.createElement("span");
-        durationSpan.className = "video-duration absolute bottom-1 right-1 bg-black bg-opacity-70 text-white text-xs px-1 rounded";
-        durationSpan.textContent = "0:00"; // пока заглушка
+        durationSpan.className = "video-duration";
+        durationSpan.textContent = "0:00";
 
         videoContainer.appendChild(thumbnail);
+        videoContainer.appendChild(overlay);
+        videoContainer.appendChild(loadingIndicator);
         videoContainer.appendChild(durationSpan);
         contentDiv.appendChild(videoContainer);
 
-        // Подгружаем длительность видео динамически
-        const tempVideo = document.createElement("video");
-        tempVideo.src = videoUrl;
-        tempVideo.addEventListener("loadedmetadata", () => {
-            const minutes = Math.floor(tempVideo.duration / 60);
-            const seconds = Math.floor(tempVideo.duration % 60);
-            durationSpan.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        });
+        // Ленивая загрузка длительности видео только когда элемент виден
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    this.loadVideoDuration(videoUrl, durationSpan);
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.1 });
+        observer.observe(videoContainer);
 
         // Клик по видео открывает плеер
         videoContainer.addEventListener("click", () => {
             this.openVideoPlayer(videoUrl, thumbnailUrl);
         });
+
+        // Проверяем статус загрузки
+        if (message.is_ready === false) {
+            loadingIndicator.classList.remove('hidden');
+            overlay.classList.add('hidden');
+        }
 
     } else {
         // Проверяем картинку
@@ -1107,6 +1203,22 @@ class HomeManager {
         } catch (error) {
             return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjMzczODNkIi8+CjxwYXRoIGQ9Ik0xNjAgMTI1VjE3NUwyMDAgMTUwTDE2MCAxMjVaIiBmaWxsPSIjNjE2MTZiIi8+Cjwvc3ZnPg==';
         }
+    }
+
+    private loadVideoDuration(videoUrl: string, durationElement: HTMLElement): void {
+        const video = document.createElement('video');
+        video.src = videoUrl;
+        video.preload = 'metadata';
+        
+        video.addEventListener('loadedmetadata', () => {
+            const minutes = Math.floor(video.duration / 60);
+            const seconds = Math.floor(video.duration % 60).toString().padStart(2, '0');
+            durationElement.textContent = `${minutes}:${seconds}`;
+        });
+        
+        video.addEventListener('error', () => {
+            durationElement.textContent = '0:00';
+        });
     }
 
     private async getVideoDuration(videoUrl: string): Promise<string> {

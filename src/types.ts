@@ -56,8 +56,11 @@ export interface Message {
     updated_at?: string;
     is_edited?: boolean;
     is_deleted?: boolean;
+    is_ready?: boolean;
+    type?: string;
     attachments?: UploadedFile[];
-    thumbnail_url?: string; // Поддержка файлов в сообщениях
+    thumbnail_url?: string;
+    url?: string;
 }
 
 export interface GroupProfile {

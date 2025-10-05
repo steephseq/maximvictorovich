@@ -1,14 +1,11 @@
 package database
 
-import "log"
+func AddThumbnail(id int, url string) error {
+	query := `INSERT 
+			INTO thumbnails(message_id,filename)
+			VALUES (:message_id,:filename)`
 
-func AddThumbnail(url string, content string) error {
-	log.Println("thumbnail trigger")
-	query := `UPDATE messages 
-			SET thumbnail_url=$1 
-			WHERE content=$2`
-
-	_, err := DB.Exec(query, url, content)
+	_, err := DB.Exec(query, id, url)
 	if err != nil {
 		return err
 	}

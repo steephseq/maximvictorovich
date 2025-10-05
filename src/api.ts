@@ -315,9 +315,34 @@ export class ProfileAPI {
         });
     }
 
-    async uploadFile(file: File): Promise<string> {
+    async createEmptyMessage(chatId: number, messageType: string): Promise<number> {
+        const response = await this.fetchWithAuth<any>('/createEmptyMessage', {
+            method: 'POST',
+            body: JSON.stringify({
+                chat_id: chatId,
+                type: messageType,
+                is_ready: false
+            })
+        });
+
+        if (typeof response === 'number') {
+            return response;
+        } else if (response?.id) {
+            return response.id;
+        } else if (response?.message_id) {
+            return response.message_id;
+        } else {
+            throw new Error('Message ID not found in response');
+        }
+    }
+
+    async uploadFile(file: File, messageId?: number): Promise<string> {
         const formData = new FormData();
         formData.append('file', file);
+        
+        if (messageId) {
+            formData.append('message_id', messageId.toString());
+        }
 
         const response = await fetch(`${this.baseURL}/uploadFile`, {
             method: 'POST',
@@ -333,14 +358,20 @@ export class ProfileAPI {
 
         const result = await response.json();
 
-        if (result.Data?.url) {
+        if (result.Data?.filename) {
+            return result.Data.filename;
+        } else if (result.data?.filename) {
+            return result.data.filename;
+        } else if (result.filename) {
+            return result.filename;
+        } else if (result.Data?.url) {
             return result.Data.url;
         } else if (result.data?.url) {
             return result.data.url;
         } else if (result.url) {
             return result.url;
         } else {
-            throw new Error('URL not found in response');
+            throw new Error('File URL not found in response');
         }
     }
 

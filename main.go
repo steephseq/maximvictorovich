@@ -41,6 +41,7 @@ func main() {
 	mux.Handle("/uploadFile", authentification.JWTMiddleware(http.HandlerFunc(files.UploadFileHandler)))
 	mux.Handle("/setName", authentification.JWTMiddleware(http.HandlerFunc(profile.SetNameHandler)))
 	mux.Handle("/setUserName", authentification.JWTMiddleware(http.HandlerFunc(profile.SetUserNameHandler)))
+	mux.Handle("/createEmptyMessage", authentification.JWTMiddleware(http.HandlerFunc(chats.CreateEmptyMessage)))
 	mux.HandleFunc("/ws", chats.SendMessageHandler)
 
 	fs := http.FileServer(http.Dir("./frontend"))

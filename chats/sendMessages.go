@@ -62,10 +62,10 @@ func SendMessageHandler(w http.ResponseWriter, r *http.Request) {
 
 	rooms[uint(chatID)][client] = true
 	log.Println("cleintd is added into rooms")
-	go client.ReadPump(rooms)
+	go client.ReadPump(w, rooms)
 }
 
-func (c *ClientSM) ReadPump(rooms map[uint]map[*ClientSM]bool) {
+func (c *ClientSM) ReadPump(w http.ResponseWriter, rooms map[uint]map[*ClientSM]bool) {
 	defer func() {
 		delete(rooms[uint(c.ChatID)], c)
 		c.Conn.Close()
@@ -88,11 +88,10 @@ func (c *ClientSM) ReadPump(rooms map[uint]map[*ClientSM]bool) {
 		msg.ChatId = int(c.ChatID)
 		msg.CreatedAt = time.Now()
 
-		if err := database.SaveMessageToDB(msg); err != nil {
+		if _, err = database.SaveMessageToDB(msg); err != nil {
 			log.Printf("failed to add msg into db,error:%v", err)
 			continue
 		}
-
 		broadcastToRoom(msg, c.ChatID)
 		log.Printf("successfully add message to db")
 	}
