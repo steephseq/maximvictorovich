@@ -1,4 +1,5 @@
 import { ProfileAPI } from './api.js';
+import { statusSocket } from './websocket.js';
 import type { Chat, User, GroupProfile } from './types.js';
 
 class ProfileManager {
@@ -10,7 +11,15 @@ class ProfileManager {
     constructor() {
         this.api = new ProfileAPI();
         this.setupEventListeners();
+        statusSocket.addMessageListener(this.handleStatusUpdate.bind(this));
     }
+
+
+    // Внутри ProfileManager
+public updateGroupProfile(profile: GroupProfile) {
+    this.currentProfile = profile;
+    this.renderGroupProfile(profile); // теперь внутри класса, приватный метод доступен
+}
 
     async init(chatData: Chat) {
         try {
@@ -52,7 +61,8 @@ class ProfileManager {
         this.showElement('editBtn');
         this.hideElement('messageBtn');
         
-        this.setText('memberCount', `${profile.count_members} участников`);
+        const onlineCount = profile.members.filter(m => m.online).length;
+        this.setText('memberCount', `${profile.count_members} участников, ${onlineCount} онлайн`);
         this.renderMembers(profile.members);
     }
 
@@ -65,6 +75,18 @@ class ProfileManager {
         this.hideElement('editBtn');
         
         this.setText('userUsername', `@${profile.username}`);
+
+        const infoMain = document.querySelector('.info-main');
+        if (infoMain) {
+            let statusEl = document.getElementById('userProfileStatus');
+            if (!statusEl) {
+                statusEl = document.createElement('div');
+                statusEl.id = 'userProfileStatus';
+                infoMain.appendChild(statusEl);
+            }
+            statusEl.className = `online-status ${profile.online ? 'online' : ''}`;
+            statusEl.textContent = profile.online ? 'online' : 'offline';
+        }
     }
 
     private renderMembers(members: User[]) {
@@ -74,10 +96,18 @@ class ProfileManager {
         container.innerHTML = members.map(member => `
             <div class="member-card" data-user-id="${member.id}">
                 <div class="member-info">
-                    <img src="${member.avatar_url || 'default-avatar.jpg'}" 
-                        alt="${member.name}" 
-                        class="member-avatar">
-                    <span class="member-name">${member.name}</span>
+                    <div class="member-avatar-container">
+                        <img src="${member.avatar_url || 'default-avatar.jpg'}" 
+                            alt="${member.name}" 
+                            class="member-avatar">
+                        ${member.online ? '<span class="online-dot"></span>' : ''}
+                    </div>
+                    <div class="member-details">
+                        <span class="member-name">${member.name}</span>
+                        <span class="online-status ${member.online ? 'online' : ''}">
+                            ${member.online ? 'online' : 'offline'}
+                        </span>
+                    </div>
                 </div>
                 <div class="member-actions">
                     <button class="action-btn btn-message" data-action="message" data-user-id="${member.id}">
@@ -89,6 +119,42 @@ class ProfileManager {
                 </div>
             </div>
         `).join('');
+    }
+
+    private handleStatusUpdate(event: MessageEvent) {
+        try {
+            const statusUpdate = JSON.parse(event.data);
+            if (statusUpdate.type !== 'status_update') return;
+
+            const { user_id, online } = statusUpdate.data;
+            const memberCard = document.querySelector(`.member-card[data-user-id="${user_id}"]`);
+
+            if (memberCard) {
+                const onlineDot = memberCard.querySelector('.online-dot');
+                const statusText = memberCard.querySelector('.online-status');
+
+                if (online) {
+                    if (!onlineDot) {
+                        const avatarContainer = memberCard.querySelector('.member-avatar-container');
+                        const newDot = document.createElement('span');
+                        newDot.className = 'online-dot';
+                        avatarContainer?.appendChild(newDot);
+                    }
+                    if (statusText) {
+                        statusText.textContent = 'online';
+                        statusText.classList.add('online');
+                    }
+                } else {
+                    onlineDot?.remove();
+                    if (statusText) {
+                        statusText.textContent = 'offline';
+                        statusText.classList.remove('online');
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error handling status update:', error);
+        }
     }
 
     private setupEventListeners() {
@@ -193,6 +259,19 @@ const profileManager = new ProfileManager();
 const urlParams = new URLSearchParams(window.location.search);
 const chatId = parseInt(urlParams.get('chatId') || '1');
 const isGroup = urlParams.get('type') === 'group';
+
+document.addEventListener('groupProfileUpdate', (e: Event) => {
+    const customEvent = e as CustomEvent<GroupProfile>;
+    const profile = customEvent.detail;
+    console.log("🟢 Обновление профиля группы:", profile);
+
+    if (profile && profile.members) {
+        profileManager.updateGroupProfile(profile); // публичный метод, см. предыдущий вариант
+    }
+});
+
+
+
 
 document.addEventListener('DOMContentLoaded', () => {
     profileManager.init({

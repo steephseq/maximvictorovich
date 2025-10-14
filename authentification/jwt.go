@@ -78,6 +78,10 @@ func JWTVerification(tokenString string) (*jwt.Token, error) {
 }
 
 func checkJWT4Middleware(r *http.Request) (string, error) {
+	if tokenString := r.URL.Query().Get("token"); tokenString != "" {
+		return tokenString, nil
+	}
+
 	tokenString := r.Header.Get("Authorization")
 	if tokenString == "" {
 		return "", fmt.Errorf("token is not provided /check4jwtmiddleware")

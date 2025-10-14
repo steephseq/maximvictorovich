@@ -100,3 +100,9 @@ func UpdateAvatar(avatar cloudModels.Avatar) error {
 	_, err = DB.NamedExec(query, avatar)
 	return err
 }
+
+func UpdateLastSeen(userID int, lastSeen time.Time) error {
+	query := `UPDATE users SET last_seen=$1 WHERE id=$2`
+	_, err := DB.Exec(query, lastSeen, userID)
+	return err
+}

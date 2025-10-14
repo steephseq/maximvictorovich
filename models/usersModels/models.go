@@ -10,6 +10,7 @@ type User struct {
 	Password string         `json:"password" db:"password"`
 	Bio      sql.NullString `json:"bio" db:"bio"`
 	Avatar   string         `json:"url" db:"url"`
+	IsOnline bool           `json:"is_online" db:"is_online"`
 }
 
 type UserLogin struct {

@@ -29,6 +29,27 @@
 .header-action-btn[title="Поиск"]:hover::after {
     opacity: 1;
 }
+
+.member-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.member-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.status-online {
+    color: #22c55e; /* green-500 */
+    font-size: 0.8rem;
+}
+
+.status-offline {
+    color: #9ca3af; /* gray-400 */
+    font-size: 0.8rem;
+}
 </style>
 </head>
 <body>
@@ -137,6 +158,104 @@
             </div>
         </div>
     </div>
+
+    <!-- Модальное окно профиля -->
+    <div id="profileModal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content profile-modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Мой профиль</h2>
+                <div>
+                    <button class="modal-action-btn" id="editProfileBtn"><i class="fas fa-cog"></i></button>
+                    <button class="modal-close" id="closeProfileModal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="profile-avatar-section">
+                    <div class="profile-avatar-container">
+                        <img id="profileModalAvatar" src="" alt="Аватар" class="profile-modal-avatar">
+                        <button class="change-avatar-btn" id="changeAvatarBtn">
+                            <i class="fas fa-camera"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="profile-form">
+                    <div class="form-group">
+                        <label for="profileName">Имя</label>
+                        <input type="text" id="profileName" class="form-input" placeholder="Ваше имя">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="profileUsername">Username</label>
+                        <input type="text" id="profileUsername" class="form-input" placeholder="@username">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="profileBio">О себе</label>
+                        <textarea id="profileBio" class="form-textarea" placeholder="Расскажите о себе..." rows="3"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="cancelProfileBtn">Отмена</button>
+                <button class="btn-primary" id="saveProfileBtn">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно профиля группы -->
+    <div id="groupProfileModal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content group-profile-modal">
+            <div class="modal-header">
+                <h2 class="modal-title" id="groupProfileModalTitle">Профиль группы</h2>
+                <div>
+                    <button class="modal-action-btn" id="editGroupProfileBtn"><i class="fas fa-cog"></i></button>
+                    <button class="modal-close" id="closeGroupProfileModal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="profile-avatar-section">
+                    <div class="profile-avatar-container">
+                        <img id="groupProfileModalAvatar" src="" alt="Аватар группы" class="profile-modal-avatar">
+                        <button class="change-avatar-btn" id="changeGroupAvatarBtn">
+                            <i class="fas fa-camera"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="profile-form">
+                    <div class="form-group">
+                        <label for="groupProfileName">Название группы</label>
+                        <input type="text" id="groupProfileName" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="groupProfileBio">Описание</label>
+                        <textarea id="groupProfileBio" class="form-textarea" rows="2"></textarea>
+                    </div>
+                </div>
+
+                <div class="members-section">
+                    <h3>Участники (<span id="groupMemberCount">0</span>)</h3>
+                    <div class="members-list" id="groupMembersList">
+                        <!-- Участники будут добавлены здесь -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="cancelGroupProfileBtn" style="display: none;">Отмена</button>
+                <button class="btn-primary" id="saveGroupProfileBtn" style="display: none;">Сохранить</button>
+                <button class="btn-danger" id="leaveGroupBtn">Покинуть группу</button>
+                <button class="btn-primary" id="addGroupMemberBtn">Добавить участника</button>
+            </div>
+        </div>
+    </div>
+
 
     <script type="module" src="dist/home.js"></script>
 </body>

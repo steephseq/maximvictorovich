@@ -10,7 +10,7 @@ import (
 	usersModels "mess/models/usersModels"
 )
 
-func GetUserProfile(uID int) (usersModels.User, error) {
+func GetUserProfile(uID int) (profileModels.Profile, error) {
 	query := `SELECT
 	u.id,
 	u.name,
@@ -21,19 +21,19 @@ func GetUserProfile(uID int) (usersModels.User, error) {
 	LEFT JOIN avatars a ON a.owner_id=u.id
 	WHERE u.id=$1 AND a.is_current=true
 			`
-	var userProfile usersModels.User
-	err := DB.Get(&userProfile, query, uID)
+	var profile profileModels.Profile
+	err := DB.Get(&profile, query, uID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			userProfile.Name = "Deleted Account"
-			log.Println(userProfile, uID)
-			return userProfile, nil
+			profile.Name = "Deleted Account"
+			log.Println(profile, uID)
+			return profile, nil
 		}
 	}
-	return userProfile, err
+	return profile, err
 }
 
-func GetMyProfileHP(uid int) (usersModels.User, error) {
+func GetMyProfileHP(uid int) (profileModels.Profile, error) {
 	query := `SELECT
 			u.id, 
 			u.name,
@@ -42,12 +42,12 @@ func GetMyProfileHP(uid int) (usersModels.User, error) {
 			JOIN avatars a ON a.owner_id=u.id
 			WHERE u.id=$1 AND a.is_group=false AND a.is_current=true`
 
-	var u usersModels.User
-	err := DB.Get(&u, query, uid)
-	return u, err
+	var profile profileModels.Profile
+	err := DB.Get(&profile, query, uid)
+	return profile, err
 }
 
-func GetGroupProfile(chatOBJ chatsModels.Chat) (profileModels.GroupProfile, error) {
+func GetGroupProfile(chatOBJ chatsModels.Chat) (profileModels.Profile, error) {
 	query := `SELECT
 		c.name,
 		c.bio,
@@ -56,7 +56,7 @@ func GetGroupProfile(chatOBJ chatsModels.Chat) (profileModels.GroupProfile, erro
 		LEFT JOIN avatars a ON a.owner_id=c.id 
 		WHERE c.id=$1 AND a.is_current=true
 		`
-	var gp profileModels.GroupProfile
+	var gp profileModels.Profile
 
 	if err := DB.QueryRow(query, chatOBJ.ID).Scan(&gp.Name, &gp.Bio, &gp.AvatarURL); err != nil {
 		return gp, err

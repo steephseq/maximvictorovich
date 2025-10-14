@@ -7,16 +7,19 @@ import (
 	chatsModels "mess/models/chatsModels"
 	models "mess/models/services/jwt"
 	usersModels "mess/models/usersModels"
+	"mess/redis"
+	"mess/services"
 	"net/http"
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/lib/pq"
 )
 
-func GetChatsOnHomePage(uid int) ([]chatsModels.Chat, error) {
+func GetChatsForHomePage(userID int, offset time.Time) ([]chatsModels.Chat, error) {
 	var chatLst []chatsModels.Chat
 	var groupChats []chatsModels.Chat
 	var personalChats []chatsModels.Chat
@@ -25,52 +28,75 @@ func GetChatsOnHomePage(uid int) ([]chatsModels.Chat, error) {
 			c.id,
 			c.is_group,
 			u.username AS name,
-			m.content AS last_message,
+			CASE 
+				WHEN m.type = 'video' THEN '🎥 Видео'
+				WHEN m.type = 'image' THEN '📷 Фото'
+				WHEN m.type = 'audio' THEN '🎵 Аудио'
+				WHEN m.type = 'document' OR m.type = 'pdf' THEN '📄 Документ'
+				ELSE m.content
+			END AS last_message,
 			COALESCE(m.created_at, c.updated_at) AS updated_at,
-			a_user.url AS url
+			a_user.url AS url,
+			cu_other.user_id AS other_user_id,
+			u.last_seen AS last_seen 
 		FROM chats c
 		JOIN chats_users cu ON cu.chat_id = c.id AND cu.user_id = $1
 		JOIN chats_users cu_other ON cu_other.chat_id = c.id AND cu_other.user_id != $1
 		JOIN users u ON u.id = cu_other.user_id
 		LEFT JOIN avatars a_user ON a_user.owner_id = u.id AND a_user.is_group = false AND a_user.is_current = true
 		LEFT JOIN LATERAL (
-			SELECT content, created_at
+			SELECT content, created_at, type
 			FROM messages 
 			WHERE chat_id = c.id 
 			ORDER BY created_at DESC 
 			LIMIT 1
 		) m ON true
-		WHERE c.is_group = false`
+		WHERE c.is_group = false AND cu.is_hidden=true AND c.updated_at<$2
+		LIMIT 15`
 
-	err1 := DB.Select(&personalChats, query, uid)
+	err1 := DB.Select(&personalChats, query, userID, offset)
 
 	query = `SELECT DISTINCT
     c.id,
     c.is_group,
     c.name,
-    m.content AS last_message,
+    CASE 
+        WHEN m.type = 'video' THEN '🎥 Видео'
+        WHEN m.type = 'image' THEN '📷 Фото'
+        WHEN m.type = 'audio' THEN '🎵 Аудио'
+        WHEN m.type = 'document' OR m.type = 'pdf' THEN '📄 Документ'
+        ELSE m.content
+    END AS last_message,
     COALESCE(m.created_at, c.updated_at) AS updated_at,
-    a_group.url AS url
+    a_group.url AS url,
+	(
+		SELECT COUNT(*)
+		FROM chats_users cu2
+		WHERE cu2.chat_id = c.id
+	) AS count_members
 FROM chats c
 JOIN chats_users cu ON cu.chat_id = c.id AND cu.user_id = $1
 LEFT JOIN avatars a_group ON a_group.owner_id = c.id AND a_group.is_group = true AND a_group.is_current = true
 LEFT JOIN LATERAL (
-    SELECT content, created_at
+    SELECT content, created_at, type
     FROM messages 
     WHERE chat_id = c.id 
     ORDER BY created_at DESC 
     LIMIT 1
 ) m ON true
-WHERE c.is_group = true`
-	err2 := DB.Select(&groupChats, query, uid)
-	if err1 != nil {
-		return chatLst, err1
-	}
+WHERE c.is_group = true AND c.updated_at<$2
+LIMIT 15`
+
+	err2 := DB.Select(&groupChats, query, userID, offset)
 	if err2 != nil {
 		return chatLst, err2
 	}
 
+	if err1 != nil {
+		return chatLst, err1
+	}
 	chatLst = append(personalChats, groupChats...)
+
 	var validChats []chatsModels.Chat
 	var nilChats []chatsModels.Chat
 	for _, chat := range chatLst {
@@ -78,6 +104,15 @@ WHERE c.is_group = true`
 			validChats = append(validChats, chat)
 		} else {
 			nilChats = append(nilChats, chat)
+		}
+		if !chat.Is_group {
+			exists, err := redis.RedisClient.SIsMember(redis.Ctx, "online_users", chat.OtherUserID).Result()
+			if err != nil {
+				log.Printf("failed to check is user online /GetChatsForHP\nerror:%v", err)
+				chat.IsOnline = false
+				continue
+			}
+			chat.IsOnline = exists
 		}
 	}
 
@@ -88,6 +123,18 @@ WHERE c.is_group = true`
 
 	// Добавь чаты без даты в конец (или начало)
 	allChats := append(validChats, nilChats...)
+	for i := range allChats {
+		if allChats[i].Is_group {
+			continue
+		}
+		exists, err := services.IsUserOnline(allChats[i].OtherUserID)
+		if err != nil {
+			log.Printf("failed to check is user online /GetChatsForHP\nerror:%v", err)
+			allChats[i].IsOnline = false
+			continue
+		}
+		allChats[i].IsOnline = exists
+	}
 	return allChats, nil
 }
 
@@ -181,7 +228,7 @@ func ExistsUserIntoChat(cid int, uid int) (bool, error) {
 
 func GetChatsByUserID(uid int) ([]chatsModels.Chat, error) {
 	var userChats []chatsModels.Chat
-	err := DB.Select(&userChats, "SELECT c.id,c.name FROM chats c JOIN chat_users cu ON c.id=cu.chat_id WHERE cu.user_id=$1 ORDER BY c.updated_at DESC", uid)
+	err := DB.Select(&userChats, "SELECT c.id,c.name FROM chats c JOIN chats_users cu ON c.id=cu.chat_id WHERE cu.user_id=$1 ORDER BY c.updated_at DESC", uid)
 	return userChats, err
 }
 
@@ -215,7 +262,7 @@ func GetMessages(chatID uint64) ([]chatsModels.Message, error) {
 		m.created_at,
 		m.is_ready,
 		m.type,
-		t.url
+		t.filename
 		FROM messages m
 	    JOIN users u ON m.user_id=u.id
 		LEFT JOIN thumbnails t ON t.message_id=m.id 
@@ -229,21 +276,20 @@ func GetMessages(chatID uint64) ([]chatsModels.Message, error) {
 	if baseURL == "" {
 		return messagesList, errors.New("CLOUD_URL not found")
 	}
-
-	log.Println("before", messagesList)
 	for i := range messagesList {
 		if messagesList[i].Type == "video" || messagesList[i].Type == "image" {
-			messagesList[i].Content = baseURL + "messages/" + messagesList[i].Content
+			messagesList[i].Content = fmt.Sprintf("%smessages/%v", baseURL, messagesList[i].Content)
 		}
-		if messagesList[i].URL.Valid {
-			messagesList[i].URL.String = baseURL + "miniatures/" + messagesList[i].URL.String
+		if messagesList[i].Filename != nil && *messagesList[i].Filename != "" {
+			fullURL := baseURL + "miniatures/" + *messagesList[i].Filename
+			messagesList[i].Filename = &fullURL
 		}
 	}
-	log.Println(messagesList)
 	return messagesList, err
 }
 
 func SaveMessageToDB(msg chatsModels.Message) (int, error) {
+	log.Printf("🆕 Creating message")
 	var id int
 	rows, err := DB.NamedQuery(`INSERT 
 	INTO messages 

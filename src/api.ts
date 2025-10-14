@@ -146,8 +146,8 @@ export class ProfileAPI {
         });
     }
 
-    async getChats(): Promise<Chat[]> {
-        const response = await fetch(`${this.baseURL}/chats`, {
+    async getChats(offset: number = 0): Promise<Chat[]> {
+        const response = await fetch(`${this.baseURL}/chats?offset=${offset}`, {
             headers: this.getAuthHeaders()
         });
 
@@ -338,10 +338,15 @@ export class ProfileAPI {
 
     async uploadFile(file: File, messageId?: number): Promise<string> {
         const formData = new FormData();
+        
+        console.log(`📤 Исходный файл: name="${file.name}", type="${file.type}", size=${file.size}`);
+        
+        // Просто отправляем файл как есть - браузер сам добавит правильное имя
         formData.append('file', file);
         
         if (messageId) {
             formData.append('message_id', messageId.toString());
+            console.log(`🔗 Message ID: ${messageId}`);
         }
 
         const response = await fetch(`${this.baseURL}/uploadFile`, {
@@ -353,10 +358,13 @@ export class ProfileAPI {
         });
 
         if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Upload error:', errorText);
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const result = await response.json();
+        console.log('Upload response:', result);
 
         if (result.Data?.filename) {
             return result.Data.filename;
@@ -385,14 +393,13 @@ export class ProfileAPI {
         if (file.type.startsWith('video/')) return 'video';
         if (file.type.startsWith('audio/')) return 'audio';
         if (file.type === 'application/pdf') return 'pdf';
-        if (file.type.includes('document') || file.type.includes('word')) return 'document';
+        if (file.type.startsWith('application/')) return 'document';
         if (file.type.includes('sheet') || file.type.includes('excel')) return 'spreadsheet';
         return 'file';
     }
 
     async create121Chat(userId: number): Promise<Chat> {
         const existingChatId = await this.checkChatExists(userId);
-        
         if (existingChatId) {
             return await this.getChatById(existingChatId);
         } else {
@@ -577,5 +584,22 @@ export class ProfileAPI {
         } else {
             throw new Error(data.message || 'Failed to get profile');
         }
+    }
+
+    async updateProfileField(userId: number, field: string, value: string): Promise<void> {
+        const endpoint = field === 'bio' ? '/setBio' : 
+                        field === 'name' ? '/setName' : 
+                        '/setUserName';
+        
+        await this.fetchWithAuth<any>(endpoint, {
+            method: 'PATCH',
+            body: JSON.stringify({
+                id: userId,
+                is_group: false,
+                parameter: value,
+                column: field,
+                action: 'edit'
+            })
+        });
     }
 }

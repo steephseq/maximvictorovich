@@ -23,6 +23,7 @@ import (
 )
 
 func UploadFileHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("uploading file")
 	r.Body = http.MaxBytesReader(w, r.Body, 1024<<20)
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
 		log.Println(err)
@@ -49,6 +50,7 @@ func UploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	filename := header.Filename
+	log.Println(filename)
 	if err := godotenv.Load(); err != nil {
 		log.Fatal(err)
 	}
@@ -69,13 +71,18 @@ func UploadFileHandler(w http.ResponseWriter, r *http.Request) {
 		".webm": true,
 	}
 	ext := strings.ToLower(filepath.Ext(filename))
+	log.Println("ext:", ext)
 	if videoExtensions[ext] {
+		log.Println("video downloading")
 		_, videoKey, err := VideoUpload(id, filename, ctx, s3Client, bucket, file, ext)
 		if err != nil {
+			log.Printf("❌ VideoUpload error: %v", err)
 			services.ResponseFunc(w, http.StatusInternalServerError, "failed to upload video", nil)
 			return
 		}
-		if err := database.UpdateMessage(id, videoKey, true); err != nil {
+		log.Printf("✅ Video uploaded successfully, key: %s", videoKey)
+		log.Printf("🧠 Updating message: id=%d, filename=%s", id, filename)
+		if err := database.UpdateMessage(id, strings.TrimPrefix(videoKey, "messages/"), true); err != nil {
 			services.ResponseFunc(w, http.StatusInternalServerError, "failed to update message", nil)
 			return
 		}
@@ -87,42 +94,57 @@ func UploadFileHandler(w http.ResponseWriter, r *http.Request) {
 			services.ResponseFunc(w, http.StatusInternalServerError, "failed to upload file", nil)
 			return
 		}
-		if err := database.UpdateMessage(id, key, true); err != nil {
-			services.ResponseFunc(w, http.StatusInternalServerError, "failed to update message", nil)
-			return
-		}
 		services.ResponseFunc(w, http.StatusOK, "successful", map[string]string{"filename": strings.TrimPrefix(key, "messages/")})
 	}
 }
 
 func VideoUpload(id int, filename string, ctx context.Context, s3Client *s3.Client, bucket string, file io.Reader, ext string) (string, string, error) {
+	log.Printf("🎬 VideoUpload started: id=%d, filename=%s, ext=%s", id, filename, ext)
+
 	tmpFile, err := os.CreateTemp("", "upload-*"+ext)
 	if err != nil {
+		log.Printf("❌ Failed to create temp file: %v", err)
 		return "", "", err
 	}
 	defer os.Remove(tmpFile.Name())
+	log.Printf("📁 Temp file created: %s", tmpFile.Name())
 
 	if _, err := io.Copy(tmpFile, file); err != nil {
+		log.Printf("❌ Failed to copy file: %v", err)
 		return "", "", err
 	}
+	log.Println("✅ File copied to temp")
 
 	if _, err := tmpFile.Seek(0, io.SeekStart); err != nil {
+		log.Printf("❌ Failed to seek: %v", err)
 		return "", "", err
 	}
 
 	timeStamp := strconv.FormatInt(time.Now().UnixNano(), 10)
-	keyThumbnails := fmt.Sprintf("thumb_%s.jpg", timeStamp)
+	keyThumbnails := fmt.Sprintf("%s.jpg", timeStamp)
+	log.Printf("🖼️ Creating thumbnail: %s", keyThumbnails)
+
 	if err = thumbnailCreate(tmpFile, ctx, s3Client, bucket, keyThumbnails); err != nil {
+		log.Printf("❌ Failed to create thumbnail: %v", err)
 		return "", "", err
 	}
+	log.Println("✅ Thumbnail created")
 
+	log.Println("☁️ Uploading video to cloud...")
 	key, err := cloud.UploadFile(ctx, s3Client, bucket, tmpFile, filename, "messages")
 	if err != nil {
+		log.Printf("❌ Failed to upload video: %v", err)
 		return "", "", err
 	}
-	if err = database.AddThumbnail(id, key); err != nil {
+	log.Printf("✅ Video uploaded, key: %s", key)
+
+	keyThumbnails = strings.TrimSuffix(strings.TrimPrefix(keyThumbnails, "messages/"), ".mp4")
+	if err = database.AddThumbnail(id, keyThumbnails); err != nil {
+		log.Printf("❌ Failed to add thumbnail to DB: %v", err)
 		return "", "", err
 	}
+	log.Println("✅ Thumbnail added to DB")
+
 	return keyThumbnails, key, nil
 }
 

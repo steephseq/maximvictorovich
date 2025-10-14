@@ -9,25 +9,30 @@ import (
 )
 
 type Message struct {
-	ID        int            `json:"id" db:"id"`
-	ChatId    int            `json:"chat_id" db:"chat_id"`
-	UserId    int            `json:"user_id" db:"user_id"`
-	Name      string         `json:"name" db:"name"` //name msg author in chat
-	Content   string         `json:"content" db:"content"`
-	CreatedAt time.Time      `json:"created_at" db:"created_at"`
-	URL       sql.NullString `json:"url" db:"url"`
-	IsReady   bool           `json:"is_ready" db:"is_ready"`
-	Type      string         `json:"type" db:"type"`
+	ID        int         `json:"id" db:"id"`
+	ChatId    int         `json:"chat_id" db:"chat_id"`
+	UserId    int         `json:"user_id" db:"user_id"`
+	Name      string      `json:"name" db:"name"` //name msg author in chat
+	Content   interface{} `json:"content" db:"content"`
+	CreatedAt time.Time   `json:"created_at" db:"created_at"`
+	Filename  *string     `json:"filename" db:"filename"` // Thumbnail filename
+	IsReady   bool        `json:"is_ready" db:"is_ready"`
+	Type      string      `json:"type" db:"type"`
 }
 
 type Chat struct {
-	ID          int            `json:"id" db:"id"`
-	Name        *string        `json:"name" db:"name"`
-	Is_group    bool           `json:"is_group" db:"is_group"`
-	Updated_at  *time.Time     `json:"updated_at" db:"updated_at"`
-	LastMessage *string        `json:"last_message" db:"last_message"`
-	AvatarURL   *string        `json:"url" db:"url"`
-	Bio         sql.NullString `json:"bio" db:"bio"`
+	ID           int            `json:"id" db:"id"`
+	Name         *string        `json:"name" db:"name"`
+	Is_group     bool           `json:"is_group" db:"is_group"`
+	Updated_at   *time.Time     `json:"updated_at" db:"updated_at"`
+	LastMessage  *string        `json:"last_message" db:"last_message"`
+	AvatarURL    *string        `json:"url" db:"url"`
+	Bio          sql.NullString `json:"bio" db:"bio"`
+	OtherUserID  int            `json:"other_user_id" db:"other_user_id"`
+	IsOnline     bool           `json:"is_online" db:"is_online"`
+	LastSeen     time.Time      `json:"last_seen" db:"last_seen"`
+	CountOnline  int            `json:"count_online"`
+	CountMembers int            `json:"count_members" db:"count_members"`
 }
 
 type CreateChatRequest struct {

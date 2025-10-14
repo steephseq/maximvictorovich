@@ -61,6 +61,7 @@ export interface Message {
     attachments?: UploadedFile[];
     thumbnail_url?: string;
     url?: string;
+    filename?: string; // Thumbnail filename from DB
 }
 
 export interface GroupProfile {

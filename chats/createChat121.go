@@ -64,7 +64,7 @@ func CreateChat121Handler(w http.ResponseWriter, r *http.Request) {
 	chatInfo := map[string]interface{}{
 		"id":         chatID,
 		"name":       userInfo.Name,
-		"avatar":     userInfo.Avatar,
+		"avatar":     userInfo.AvatarURL,
 		"is_group":   false,
 		"created_at": time.Now()}
 	log.Printf("successful add users into chat")

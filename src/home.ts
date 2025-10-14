@@ -1,5 +1,5 @@
 import { ProfileAPI } from './api.js';
-import { Chat, Message, User } from './types.js';
+import { Chat, Message, User, GroupProfile } from './types.js';
 import { authManager } from './auth.js';
 import { SearchManager } from './search.js';
 import { GroupManager } from './groupManager.js';
@@ -217,135 +217,7 @@ class VideoPlayer {
     }
 }
 
-class WebSocketManager {
-    private ws: WebSocket | null = null;
-    private reconnectAttempts = 0;
-    private maxReconnectAttempts = 5;
-    private reconnectInterval = 3000;
-    private messageHandlers: ((message: Message) => void)[] = [];
-    private chatUpdateHandlers: ((chatId: number, lastMessage: string) => void)[] = [];
-
-    constructor(private chatId: number) {}
-
-    connect(): Promise<void> {
-        return new Promise((resolve, reject) => {
-            try {
-                const token = localStorage.getItem('token');
-                if (!token) {
-                    throw new Error('No token found');
-                }
-
-                const wsUrl = `wss://localhost:8080/ws?id=${this.chatId}&token=${encodeURIComponent(token)}`;
-                this.ws = new WebSocket(wsUrl);
-
-                this.ws.onopen = () => {
-                    this.reconnectAttempts = 0;
-                    resolve();
-                };
-
-                this.ws.onmessage = (event) => {
-                    try {
-                        const message: Message = JSON.parse(event.data);
-                        this.notifyMessageHandlers(message);
-                        this.notifyChatUpdateHandlers(message.chat_id, message.content || '');
-                    } catch (error) {
-                        console.error('Error parsing WebSocket message:', error);
-                    }
-                };
-
-                this.ws.onclose = () => {
-                    this.handleReconnection();
-                };
-
-                this.ws.onerror = (error) => {
-                    reject(error);
-                };
-
-            } catch (error) {
-                reject(error);
-            }
-        });
-    }
-
-    private handleReconnection(): void {
-        if (this.reconnectAttempts < this.maxReconnectAttempts) {
-            this.reconnectAttempts++;
-            setTimeout(() => {
-                this.connect().catch(() => {});
-            }, this.reconnectInterval);
-        }
-    }
-
-    sendMessage(content: string, type?: string): void {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            const message: any = {
-                content: content,
-                chat_id: this.chatId
-            };
-            if (type) {
-                message.type = type;
-            }
-            this.ws.send(JSON.stringify(message));
-        } else {
-            throw new Error('WebSocket is not connected');
-        }
-    }
-
-    addMessageHandler(handler: (message: Message) => void): void {
-        this.messageHandlers.push(handler);
-    }
-
-    removeMessageHandler(handler: (message: Message) => void): void {
-        const index = this.messageHandlers.indexOf(handler);
-        if (index > -1) {
-            this.messageHandlers.splice(index, 1);
-        }
-    }
-
-    addChatUpdateHandler(handler: (chatId: number, lastMessage: string) => void): void {
-        this.chatUpdateHandlers.push(handler);
-    }
-
-    removeChatUpdateHandler(handler: (chatId: number, lastMessage: string) => void): void {
-        const index = this.chatUpdateHandlers.indexOf(handler);
-        if (index > -1) {
-            this.chatUpdateHandlers.splice(index, 1);
-        }
-    }
-
-    private notifyMessageHandlers(message: Message): void {
-        this.messageHandlers.forEach(handler => {
-            try {
-                handler(message);
-            } catch (error) {
-                console.error('Error in message handler:', error);
-            }
-        });
-    }
-
-    private notifyChatUpdateHandlers(chatId: number, lastMessage: string): void {
-        this.chatUpdateHandlers.forEach(handler => {
-            try {
-                handler(chatId, lastMessage);
-            } catch (error) {
-                console.error('Error in chat update handler:', error);
-            }
-        });
-    }
-
-    disconnect(): void {
-        if (this.ws) {
-            this.ws.close();
-            this.ws = null;
-        }
-        this.messageHandlers = [];
-        this.chatUpdateHandlers = [];
-    }
-
-    isConnected(): boolean {
-        return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
-    }
-}
+import { WebSocketManager } from './websocket.js';
 
 interface ApiResponse<T> {
     data?: T;
@@ -374,6 +246,12 @@ class FileUploader {
 
     async uploadFile(file: File, progressCallback?: (messageId: number, progress: number) => void): Promise<void> {
         try {
+            console.log(`🔍 FileUploader.uploadFile вызван с файлом:`, {
+                name: file.name,
+                type: file.type,
+                size: file.size
+            });
+            
             if (!this.api.validateFileSize(file, 1024)) {
                 throw new Error(`Файл слишком большой. Максимальный размер: 1024MB`);
             }
@@ -458,7 +336,13 @@ class FileUploader {
         input.addEventListener('change', (e) => {
             const target = e.target as HTMLInputElement;
             if (target.files && target.files[0]) {
-                this.uploadFile(target.files[0]);
+                const selectedFile = target.files[0];
+                console.log(`📁 Файл выбран из input:`, {
+                    name: selectedFile.name,
+                    type: selectedFile.type,
+                    size: selectedFile.size
+                });
+                this.uploadFile(selectedFile);
             }
             target.value = '';
         });
@@ -496,7 +380,9 @@ class HomeManager {
     private currentChat: Chat | null = null;
     private currentProfile: any = null;
     private chats: Chat[] = [];
+    private chatOffset: number = 0;
     private wsManager: WebSocketManager | null = null;
+
     private tempMessageIds: Set<string> = new Set();
     private searchManager!: SearchManager;
     private groupManager!: GroupManager;
@@ -532,6 +418,10 @@ class HomeManager {
             
             this.initFileUploader();
             this.setupEventListeners();
+            this.setupProfileClickHandlers();
+            this.setupProfileModalHandlers();
+            this.setupGroupProfileModalHandlers();
+
             this.renderChats();
         } catch (error) {
             this.handleAuthError(error);
@@ -554,9 +444,27 @@ class HomeManager {
         );
     }
 
-    private onFileUploadComplete(url: string, file: File): void {
+    private async onFileUploadComplete(url: string, file: File): Promise<void> {
         if (this.currentChat) {
-            this.sendMessageWithFile(url, file);
+            const fileType = this.api.getFileType(file);
+            
+            // Для видео НЕ отправляем через WebSocket - сообщение уже создано через createEmptyMessage!
+            if (fileType === 'video') {
+                console.log('✅ Видео загружено, сообщение уже создано, не отправляем через WS');
+                const shortDescription = this.getFileShortDescription(fileType, file.name);
+                this.updateChatPosition(this.currentChat!.id, shortDescription);
+                // Перезагружаем сообщения чтобы показать загруженное видео
+                try {
+                    const messages = await this.api.getMessages(this.currentChat.id);
+                    await this.renderMessages(messages);
+                    this.scrollToBottom();
+                } catch (error) {
+                    console.error('Failed to reload messages:', error);
+                }
+            } else {
+                // Для остальных файлов отправляем через WebSocket
+                this.sendMessageWithFile(url, file);
+            }
         }
     }
 
@@ -619,6 +527,7 @@ class HomeManager {
 
         if (userNameElement) {
             userNameElement.textContent = this.currentUser.name;
+            userNameElement.style.cursor = 'pointer';
         }
 
         if (userAvatarElement) {
@@ -626,16 +535,304 @@ class HomeManager {
             if (avatarUrl) {
                 userAvatarElement.src = avatarUrl;
             }
+            userAvatarElement.style.cursor = 'pointer';
         }
+    }
+
+    private setupProfileClickHandlers(): void {
+        const userNameElement = document.getElementById('userName');
+        const userAvatarElement = document.getElementById('userAvatar');
+
+        if (userNameElement) {
+            userNameElement.addEventListener('click', () => {
+                console.log('Клик по имени пользователя');
+                this.openMyProfile();
+            });
+        }
+
+        if (userAvatarElement) {
+            userAvatarElement.addEventListener('click', () => {
+                console.log('Клик по аватару пользователя');
+                this.openMyProfile();
+            });
+        }
+    }
+
+    private openMyProfile(): void {
+        this.showProfileModal(this.currentUser);
+    }
+
+    private async openOtherUserProfile(): Promise<void> {
+        if (!this.currentChat) return;
+
+        try {
+            const profile = await this.api.fetchProfile(this.currentChat);
+            if (this.currentChat.is_group) {
+                this.showGroupProfileModal(profile as GroupProfile);
+            } else {
+                this.showProfileModal(profile as User);
+            }
+        } catch (error) {
+            console.error('Failed to fetch profile:', error);
+            this.showError('Не удалось загрузить профиль.');
+        }
+    }
+
+    private showProfileModal(user: User | null): void {
+        const modal = document.getElementById('profileModal');
+        if (!modal || !user) {
+            console.error('Модальное окно профиля или пользователь не найдены.');
+            return;
+        }
+
+        const isMyProfile = user.id === this.currentUser?.id;
+
+        // Обновляем заголовок
+        const modalTitle = modal.querySelector('.modal-title') as HTMLElement;
+        if (modalTitle) {
+            modalTitle.textContent = isMyProfile ? 'Мой профиль' : 'Профиль пользователя';
+        }
+
+        // Заполняем данные
+        const avatarImg = document.getElementById('profileModalAvatar') as HTMLImageElement;
+        const nameInput = document.getElementById('profileName') as HTMLInputElement;
+        const usernameInput = document.getElementById('profileUsername') as HTMLInputElement;
+        const bioTextarea = document.getElementById('profileBio') as HTMLTextAreaElement;
+
+        if (avatarImg) {
+            const avatarUrl = user.avatar_url || user.avatar || user.url;
+            avatarImg.src = avatarUrl || 'https://via.placeholder.com/120';
+        }
+        if (nameInput) {
+            nameInput.value = user.name || '';
+            nameInput.readOnly = true;
+        }
+        if (usernameInput) {
+            usernameInput.value = user.username || '';
+            usernameInput.readOnly = true;
+        }
+        if (bioTextarea) {
+            bioTextarea.value = user.bio || '';
+            bioTextarea.readOnly = true;
+        }
+
+        // Управление видимостью кнопок
+        const editBtn = document.getElementById('editProfileBtn');
+        const saveBtn = document.getElementById('saveProfileBtn');
+        const cancelBtn = document.getElementById('cancelProfileBtn');
+        const changeAvatarBtn = document.getElementById('changeAvatarBtn');
+
+        if (isMyProfile) {
+            if(editBtn) editBtn.style.display = 'block';
+            if(saveBtn) saveBtn.style.display = 'none';
+            if(cancelBtn) cancelBtn.style.display = 'none';
+            if(changeAvatarBtn) changeAvatarBtn.style.display = 'block';
+        } else {
+            if(editBtn) editBtn.style.display = 'none';
+            if(saveBtn) saveBtn.style.display = 'none';
+            if(cancelBtn) cancelBtn.style.display = 'none';
+            if(changeAvatarBtn) changeAvatarBtn.style.display = 'none';
+        }
+        
+        // Показываем модалку
+        modal.classList.remove('hidden');
+    }
+
+    private setupProfileModalHandlers(): void {
+        const modal = document.getElementById('profileModal');
+        if (!modal) return;
+
+        const closeBtn = document.getElementById('closeProfileModal');
+        const cancelBtn = document.getElementById('cancelProfileBtn');
+        const saveBtn = document.getElementById('saveProfileBtn');
+        const editBtn = document.getElementById('editProfileBtn');
+        const changeAvatarBtn = document.getElementById('changeAvatarBtn');
+        const overlay = modal.querySelector('.modal-overlay');
+
+        const nameInput = document.getElementById('profileName') as HTMLInputElement;
+        const usernameInput = document.getElementById('profileUsername') as HTMLInputElement;
+        const bioTextarea = document.getElementById('profileBio') as HTMLTextAreaElement;
+
+        const setReadOnly = (isReadOnly: boolean) => {
+            nameInput.readOnly = isReadOnly;
+            usernameInput.readOnly = isReadOnly;
+            bioTextarea.readOnly = isReadOnly;
+
+            if(editBtn) editBtn.style.display = isReadOnly ? 'block' : 'none';
+            if(saveBtn) saveBtn.style.display = isReadOnly ? 'none' : 'block';
+            if(cancelBtn) cancelBtn.style.display = isReadOnly ? 'none' : 'block';
+        };
+
+        const closeModal = () => {
+            modal.classList.add('hidden');
+            setReadOnly(true); // Возвращаем в состояние read-only при закрытии
+        };
+
+        closeBtn?.addEventListener('click', closeModal);
+        cancelBtn?.addEventListener('click', closeModal);
+        overlay?.addEventListener('click', closeModal);
+        editBtn?.addEventListener('click', () => setReadOnly(false));
+
+        saveBtn?.addEventListener('click', async () => {
+            await this.saveProfile();
+            setReadOnly(true);
+        });
+
+        changeAvatarBtn?.addEventListener('click', () => this.changeAvatar());
+    }
+
+    private showGroupProfileModal(profile: GroupProfile): void {
+        const modal = document.getElementById('groupProfileModal');
+        if (!modal) return;
+
+        (document.getElementById('groupProfileModalTitle') as HTMLElement).textContent = profile.name;
+        (document.getElementById('groupProfileModalAvatar') as HTMLImageElement).src = profile.avatar_url || 'https://via.placeholder.com/120';
+        
+        const nameInput = document.getElementById('groupProfileName') as HTMLInputElement;
+        const bioTextarea = document.getElementById('groupProfileBio') as HTMLTextAreaElement;
+        nameInput.value = profile.name;
+        bioTextarea.value = profile.bio || '';
+        nameInput.readOnly = true;
+        bioTextarea.readOnly = true;
+
+        (document.getElementById('groupMemberCount') as HTMLElement).textContent = profile.count_members.toString();
+
+        const membersList = document.getElementById('groupMembersList') as HTMLElement;
+        membersList.innerHTML = '';
+        profile.members.forEach((member: User) => {
+            const memberElement = document.createElement('div');
+            memberElement.className = 'member-item';
+            const avatarUrl = member.avatar_url || member.avatar || member.url || 'https://via.placeholder.com/40';
+            memberElement.innerHTML = `
+                <img src="${avatarUrl}" alt="${member.name}" class="member-avatar">
+                <div class="member-info">
+                    <span class="member-name">${member.name}</span>
+                    <span class="member-status ${member.online ? 'status-online' : 'status-offline'}">${member.online ? 'online' : 'offline'}</span>
+                </div>
+            `;
+            membersList.appendChild(memberElement);
+        });
+
+        const editBtn = document.getElementById('editGroupProfileBtn');
+        const addMemberBtn = document.getElementById('addGroupMemberBtn');
+
+        if (editBtn) editBtn.style.display = profile.is_admin ? 'block' : 'none';
+        if (addMemberBtn) addMemberBtn.style.display = profile.is_admin ? 'block' : 'none';
+
+        modal.classList.remove('hidden');
+    }
+
+    private setupGroupProfileModalHandlers(): void {
+        const modal = document.getElementById('groupProfileModal');
+        if (!modal) return;
+
+        const closeBtn = document.getElementById('closeGroupProfileModal');
+        const overlay = modal.querySelector('.modal-overlay');
+        const editBtn = document.getElementById('editGroupProfileBtn');
+        const saveBtn = document.getElementById('saveGroupProfileBtn');
+        const cancelBtn = document.getElementById('cancelGroupProfileBtn');
+        const addMemberBtn = document.getElementById('addGroupMemberBtn');
+        const leaveBtn = document.getElementById('leaveGroupBtn');
+
+        const nameInput = document.getElementById('groupProfileName') as HTMLInputElement;
+        const bioTextarea = document.getElementById('groupProfileBio') as HTMLTextAreaElement;
+
+        const setReadOnly = (isReadOnly: boolean) => {
+            nameInput.readOnly = isReadOnly;
+            bioTextarea.readOnly = isReadOnly;
+
+            if(editBtn) editBtn.style.display = isReadOnly ? 'block' : 'none';
+            if(saveBtn) saveBtn.style.display = isReadOnly ? 'none' : 'block';
+            if(cancelBtn) cancelBtn.style.display = isReadOnly ? 'none' : 'block';
+            if(addMemberBtn) addMemberBtn.style.display = isReadOnly ? 'block' : 'none';
+            if(leaveBtn) leaveBtn.style.display = isReadOnly ? 'block' : 'none';
+        };
+
+        const closeModal = () => {
+            modal.classList.add('hidden');
+            setReadOnly(true);
+        };
+
+        closeBtn?.addEventListener('click', closeModal);
+        overlay?.addEventListener('click', closeModal);
+        cancelBtn?.addEventListener('click', closeModal);
+        editBtn?.addEventListener('click', () => setReadOnly(false));
+
+        saveBtn?.addEventListener('click', async () => {
+            await this.saveGroupProfile();
+            setReadOnly(true);
+        });
+    }
+
+    private async saveGroupProfile(): Promise<void> {
+        const nameInput = document.getElementById('groupProfileName') as HTMLInputElement;
+        const bioTextarea = document.getElementById('groupProfileBio') as HTMLTextAreaElement;
+
+        if (!this.currentChat) return;
+
+        try {
+            await this.api.setName(this.currentChat.id, true, nameInput.value);
+            await this.api.setBio(this.currentChat.id, true, bioTextarea.value);
+
+            alert('Профиль группы успешно обновлен!');
+        } catch (error) {
+            console.error('Ошибка сохранения профиля группы:', error);
+            alert('Не удалось сохранить профиль группы');
+        }
+    }
+
+    private async saveProfile(): Promise<void> {
+        const nameInput = document.getElementById('profileName') as HTMLInputElement;
+        const usernameInput = document.getElementById('profileUsername') as HTMLInputElement;
+        const bioTextarea = document.getElementById('profileBio') as HTMLTextAreaElement;
+
+        if (!this.currentUser) return;
+
+        try {
+            // Сохраняем каждое поле отдельно
+            if (nameInput.value !== this.currentUser.name) {
+                await this.api.updateProfileField(this.currentUser.id, 'name', nameInput.value);
+                this.currentUser.name = nameInput.value;
+            }
+
+            if (usernameInput.value !== this.currentUser.username) {
+                await this.api.updateProfileField(this.currentUser.id, 'username', usernameInput.value);
+                this.currentUser.username = usernameInput.value;
+            }
+
+            if (bioTextarea.value !== this.currentUser.bio) {
+                await this.api.updateProfileField(this.currentUser.id, 'bio', bioTextarea.value);
+                this.currentUser.bio = bioTextarea.value;
+            }
+
+            // Обновляем UI
+            this.updateUserUI();
+
+            // Закрываем модалку
+            document.getElementById('profileModal')?.classList.add('hidden');
+            
+            alert('Профиль успешно обновлен!');
+        } catch (error) {
+            console.error('Ошибка сохранения профиля:', error);
+            alert('Не удалось сохранить профиль');
+        }
+    }
+
+    private changeAvatar(): void {
+        // TODO: Реализовать загрузку аватара
+        console.log('Смена аватара');
+        alert('Функция смены аватара будет реализована');
     }
 
     private async loadChats(): Promise<void> {
         try {
-            const response = await this.api.getChats();
-            this.chats = this.normalizeApiResponse<Chat[]>(response);
+            const newChats = await this.api.getChats(this.chatOffset);
+            if (newChats.length > 0) {
+                this.chats.push(...this.normalizeApiResponse<Chat[]>(newChats));
+                this.chatOffset += newChats.length;
+            }
         } catch (error) {
             console.error('Failed to load chats:', error);
-            this.chats = [];
         }
     }
 
@@ -685,6 +882,15 @@ class HomeManager {
         }
 
         this.setupFileUpload();
+
+        const chatsList = document.getElementById('chatsList');
+        if (chatsList) {
+            chatsList.addEventListener('scroll', () => {
+                if (chatsList.scrollTop + chatsList.clientHeight >= chatsList.scrollHeight - 5) { // 5px buffer
+                    this.loadChats().then(() => this.renderChats());
+                }
+            });
+        }
     }
 
     private setupFileUpload(): void {
@@ -762,7 +968,10 @@ class HomeManager {
             console.error('chatsList element not found!');
             return;
         }
-        chatsList.innerHTML = '';
+
+        if (this.chatOffset === 0) {
+            chatsList.innerHTML = '';
+        }
 
         if (!this.chats || this.chats.length === 0) {
             chatsList.innerHTML = `
@@ -821,7 +1030,14 @@ class HomeManager {
         this.wsManager = new WebSocketManager(chatId);
         
         this.wsManager.addMessageHandler((message: Message) => {
-            this.handleNewMessage(message);
+            // Отлавливаем системные сообщения об обновлении онлайна
+            if (message.type === 'online_count') {
+                this.updateGroupOnlineCount(message.content);
+            } else if (message.type === 'group_profile_update') {
+                this.handleGroupProfileUpdate(message.content as unknown as GroupProfile);
+            } else {
+                this.handleNewMessage(message);
+            }
         });
 
         this.wsManager.addChatUpdateHandler((chatId: number, lastMessage: string) => {
@@ -832,6 +1048,52 @@ class HomeManager {
             await this.wsManager.connect();
         } catch (error) {
             this.showError('Не удалось подключиться к чату в реальном времени');
+        }
+    }
+
+    private handleGroupProfileUpdate(profile: GroupProfile): void {
+        const modal = document.getElementById('groupProfileModal');
+        if (!modal || modal.classList.contains('hidden')) {
+            // Модальное окно не открыто, ничего не делаем
+            return;
+        }
+
+        // Проверяем, что обновление для текущего открытого чата
+        if (this.currentChat && this.currentChat.id === profile.id) {
+            const membersList = document.getElementById('groupMembersList') as HTMLElement;
+            if (!membersList) return;
+
+            (document.getElementById('groupMemberCount') as HTMLElement).textContent = profile.count_members.toString();
+
+            membersList.innerHTML = ''; // Очищаем старый список
+            profile.members.forEach((member: User) => {
+                const memberElement = document.createElement('div');
+                memberElement.className = 'member-item';
+                const avatarUrl = member.avatar_url || member.avatar || member.url || 'https://via.placeholder.com/40';
+                
+                // isOnline может приходить как IsOnline из-за Go
+                const isOnline = member.online || (member as any).IsOnline;
+
+                memberElement.innerHTML = `
+                    <img src="${avatarUrl}" alt="${member.name}" class="member-avatar">
+                    <div class="member-info">
+                        <span class="member-name">${member.name}</span>
+                        <span class="member-status ${isOnline ? 'status-online' : 'status-offline'}">${isOnline ? 'online' : 'offline'}</span>
+                    </div>
+                `;
+                membersList.appendChild(memberElement);
+            });
+        }
+    }
+
+    private updateGroupOnlineCount(count: string): void {
+        if (!this.currentChat || !this.currentChat.is_group) return;
+
+        const chatStatus = document.getElementById('currentChatStatus');
+        if (chatStatus) {
+            // Предполагаем, что в currentChat есть поле count_members
+            const memberCount = (this.currentChat as any).count_members || 0;
+            chatStatus.textContent = `${memberCount} участников, ${count} онлайн`;
         }
     }
 
@@ -1092,7 +1354,8 @@ class HomeManager {
     // Проверяем, есть ли видео
     const videoUrl = this.extractVideoUrl(message.content);
     if (videoUrl) {
-        const thumbnailUrl = message.thumbnail_url || message.url || '';
+        const thumbnailUrl = message.filename || message.thumbnail_url || message.url || '';
+        console.log(`🖼️ Thumbnail URL for message ${message.id}:`, thumbnailUrl);
 
         const videoContainer = document.createElement("div");
         videoContainer.className = "message-video relative cursor-pointer inline-block";
@@ -1315,7 +1578,6 @@ class HomeManager {
         const chatStatus = document.getElementById('currentChatStatus');
 
         const avatar = this.currentChat.avatar_url || this.currentChat.avatar || this.currentChat.url;
-        const isOnline = this.currentChat.online || false;
         const chatNameText = this.currentChat.name || 'Без имени';
 
         if (chatName) {
@@ -1332,8 +1594,25 @@ class HomeManager {
         }
 
         if (chatStatus) {
-            chatStatus.textContent = isOnline ? 'online' : 'offline';
-            chatStatus.style.color = isOnline ? '#10b981' : '#6b7280';
+            if (this.currentChat.is_group) {
+                const memberCount = (this.currentChat as any).count_members || 0;
+                // Начальное значение, будет обновлено по WS
+                chatStatus.textContent = `${memberCount} участников`; 
+            } else {
+                const isOnline = this.currentChat.online || false;
+                chatStatus.textContent = isOnline ? 'online' : 'offline';
+                chatStatus.className = `chat-header-status online-status ${isOnline ? 'online' : ''}`;
+            }
+        }
+
+        const chatHeaderInfo = document.querySelector('.chat-header-info');
+        if (chatHeaderInfo) {
+            const newChatHeaderInfo = chatHeaderInfo.cloneNode(true);
+            chatHeaderInfo.parentNode?.replaceChild(newChatHeaderInfo, chatHeaderInfo);
+
+            newChatHeaderInfo.addEventListener('click', () => {
+                this.openOtherUserProfile();
+            });
         }
     }
 
@@ -1397,6 +1676,8 @@ class HomeManager {
     getChats(): Chat[] {
         return this.chats;
     }
+
+
 }
 
 document.addEventListener('DOMContentLoaded', () => {

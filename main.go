@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"mess/authentification"
 	"mess/chats"
 	"mess/cloud"
 	"mess/files"
+	"mess/onlineStatus"
+	"mess/redis"
 
 	"mess/profile"
 
@@ -20,9 +23,18 @@ func main() {
 	if err := database.InitDB(); err != nil {
 		log.Printf("failed to init DB,error:%v", err)
 	}
+	if err := redis.InitRedis(); err != nil {
+		log.Printf("failed to init redis,error:%v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go onlineStatus.OnlineWorker(ctx)
+	go onlineStatus.RedisExpireWorker(ctx)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/register", authentification.RegisterHandler)
 	mux.HandleFunc("/login", authentification.LoginHandler)
+	mux.Handle("/onlineUsers", authentification.JWTMiddleware(http.HandlerFunc(onlineStatus.OnlineStatusHandler)))
 	mux.Handle("/chats", authentification.JWTMiddleware(http.HandlerFunc(chats.ShowChatsHandler)))
 	mux.Handle("/messages", authentification.JWTMiddleware(http.HandlerFunc(chats.ShowMessagesHandler)))
 	mux.Handle("/searchUser", authentification.JWTMiddleware(http.HandlerFunc(search.SearchUserHandler)))
@@ -42,6 +54,7 @@ func main() {
 	mux.Handle("/setName", authentification.JWTMiddleware(http.HandlerFunc(profile.SetNameHandler)))
 	mux.Handle("/setUserName", authentification.JWTMiddleware(http.HandlerFunc(profile.SetUserNameHandler)))
 	mux.Handle("/createEmptyMessage", authentification.JWTMiddleware(http.HandlerFunc(chats.CreateEmptyMessage)))
+	mux.Handle("/ws/onlineStatus", authentification.JWTMiddleware(http.HandlerFunc(onlineStatus.OnlineStatusHandler)))
 	mux.HandleFunc("/ws", chats.SendMessageHandler)
 
 	fs := http.FileServer(http.Dir("./frontend"))

@@ -11,6 +11,7 @@ import (
 )
 
 func ShowMessagesHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("ShowMessagesHandler trigged")
 	if r.Method != http.MethodGet {
 		services.ResponseFunc(w, http.StatusMethodNotAllowed, "method not allowed", nil)
 		return
@@ -43,6 +44,6 @@ func ShowMessagesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("successful get messages")
+	log.Printf("successful get messages,messages:%d", len(messages))
 	services.ResponseFunc(w, http.StatusOK, "successfully get messages", messages)
 }
