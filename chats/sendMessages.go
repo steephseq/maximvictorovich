@@ -35,6 +35,16 @@ func SendMessageHandler(w http.ResponseWriter, r *http.Request) {
 		services.ResponseFunc(w, http.StatusUnauthorized, "failed to get user id", nil)
 		return
 	}
+	exists, err := database.IsUserINChat(int(chatID), int(userID))
+	if err != nil {
+		log.Printf("SendMessageHandler: failed to check user in chat,error:%v", err)
+		services.ResponseFunc(w, http.StatusInternalServerError, "failed to check user in chat", nil)
+		return
+	}
+	if !exists {
+		services.ResponseFunc(w, http.StatusNotFound, "user not in chat", nil)
+		return
+	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -50,10 +60,10 @@ func SendMessageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	services.AddClientToHub(chatID, client)
 	services.EnsureChatSubscription(chatID, "online_count", "chat_event")
-	go ReadPump(client)
+	go ReadPump(w, client)
 }
 
-func ReadPump(c *chatsModels.Client) {
+func ReadPump(w http.ResponseWriter, c *chatsModels.Client) {
 	defer func() {
 		services.RemoveClientFromHub(c.ChatID, c)
 		c.Conn.Close()
@@ -76,11 +86,21 @@ func ReadPump(c *chatsModels.Client) {
 		msg.CreatedAt = time.Now()
 		msg.IsReady = true
 
-		if _, err = database.SaveMessageToDB(msg); err != nil {
-			log.Printf("failed to add msg into db,error:%v", err)
+		exists, err := database.IsUserINChat(int(c.ChatID), c.UserID)
+		if err != nil {
+			log.Printf("SendMessageHandler: failed to check user in chat,error:%v", err)
 			continue
 		}
+		if !exists {
+			log.Printf("SendMessageHandler: user %d is not in chat %d", c.UserID, c.ChatID)
+			continue
+		}
+		if _, err = database.SaveMessageToDB(msg); err != nil {
+			log.Printf("SendMessageHandler: failed to add msg into db,error:%v", err)
+			continue
+		}
+
 		services.BroadcastToRoom(msg, c.ChatID)
-		log.Printf("successfully add message to db")
+		log.Printf("SendMessageHandler: successfully add message to db")
 	}
 }

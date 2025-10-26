@@ -32,7 +32,7 @@ func AddUserIntoChatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("successful add users into chat")
+	log.Printf("AddUserIntoChaT: successful add users into chat")
 	services.ResponseFunc(w, http.StatusOK, "successful add users", map[string][]int{"added": added, "alreadyExists": alreadyExists})
 
 }

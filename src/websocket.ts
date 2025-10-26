@@ -1,5 +1,5 @@
 import { authManager } from './auth.js';
-import type { Message } from './types.js';
+import type { Message, User, GroupProfile } from './types.js';
 
 // =====================
 // 💬 WebSocket для чата
@@ -97,7 +97,6 @@ export class WebSocketManager {
     }
 }
 
-
 // ===========================================
 // 🌍 Глобальный WebSocket для статусов онлайн
 // ===========================================
@@ -166,4 +165,89 @@ class StatusSocket {
     }
 }
 
+// ===========================================
+// 👤 WebSocket для обновлений профиля
+// ===========================================
+class ProfileWebSocketManager {
+    private ws: WebSocket | null = null;
+    private currentChatId: number | null = null;
+    private messageListeners: ((data: any) => void)[] = [];
+    private reconnectInterval: number = 1000;
+
+    connectToProfile(chatId: number): void {
+        // Закрываем предыдущее соединение если chatId изменился
+        if (this.currentChatId !== chatId && this.ws) {
+            this.ws.close();
+        }
+
+        this.currentChatId = chatId;
+        const token = authManager.getToken();
+        
+        if (!token) {
+            console.error('❌ No auth token for profile WebSocket');
+            setTimeout(() => this.connectToProfile(chatId), 5000);
+            return;
+        }
+
+        const wsUrl = `wss://localhost:8080/ws/profile?chat_id=${chatId}&token=${encodeURIComponent(token)}`;
+        this.ws = new WebSocket(wsUrl);
+
+        this.ws.onopen = () => {
+            console.log(`✅ Profile WebSocket connected for chat ${chatId}`);
+            this.reconnectInterval = 1000;
+        };
+
+        this.ws.onmessage = (event: MessageEvent) => {
+            try {
+                const data = JSON.parse(event.data);
+                console.log('📨 Profile update received:', data);
+                
+                // Уведомляем всех слушателей
+                this.messageListeners.forEach(listener => listener(data));
+                
+                // Диспатчим глобальные события
+                if (data.type === 'profile_update') {
+                    const customEvent = new CustomEvent('profileUpdated', { detail: data.content });
+                    document.dispatchEvent(customEvent);
+                }
+            } catch (error) {
+                console.error('❌ Error parsing profile WebSocket message:', error, event.data);
+            }
+        };
+
+        this.ws.onclose = () => {
+            console.warn(`⚠️ Profile WebSocket for chat ${chatId} disconnected. Reconnecting...`);
+            setTimeout(() => this.connectToProfile(chatId), this.reconnectInterval);
+            this.reconnectInterval = Math.min(this.reconnectInterval * 2, 30000);
+        };
+
+        this.ws.onerror = (error) => {
+            console.error(`❌ Profile WebSocket error for chat ${chatId}:`, error);
+        };
+    }
+
+    disconnect(): void {
+        if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+            this.currentChatId = null;
+        }
+    }
+
+    addMessageListener(listener: (data: any) => void): void {
+        this.messageListeners.push(listener);
+    }
+
+    removeMessageListener(listener: (data: any) => void): void {
+        this.messageListeners = this.messageListeners.filter(l => l !== listener);
+    }
+}
+
+// Глобальные экземпляры
 export const statusSocket = new StatusSocket();
+export const profileWebSocket = new ProfileWebSocketManager();
+
+// Глобальные обработчики событий
+document.addEventListener('profileUpdated', ((e: CustomEvent<User | GroupProfile>) => {
+    console.log('🔄 Profile updated globally:', e.detail);
+}) as EventListener);

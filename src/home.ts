@@ -1,394 +1,28 @@
 import { ProfileAPI } from './api.js';
-import { Chat, Message, User, GroupProfile } from './types.js';
+import { Chat, User } from './types.js';
 import { authManager } from './auth.js';
 import { SearchManager } from './search.js';
 import { GroupManager } from './groupManager.js';
-
-class VideoPlayer {
-    private modal!: HTMLDivElement;
-    private video!: HTMLVideoElement;
-    private playBtn!: HTMLButtonElement;
-    private muteBtn!: HTMLButtonElement;
-    private fullscreenBtn!: HTMLButtonElement;
-    private progressBar!: HTMLDivElement;
-    private progressContainer!: HTMLDivElement;
-    private timeDisplay!: HTMLDivElement;
-    private closeBtn!: HTMLButtonElement;
-    private isPlaying: boolean = false;
-    private isMuted: boolean = false;
-    private isFullscreen: boolean = false;
-
-    constructor() {
-        this.createModal();
-        this.setupEventListeners();
-    }
-
-    private createModal(): void {
-        this.modal = document.createElement('div');
-        this.modal.className = 'video-modal';
-        this.modal.innerHTML = `
-            <div class="video-modal-content">
-                <button class="close-btn">
-                    <i class="fas fa-times"></i>
-                </button>
-                <video class="video-player" preload="metadata">
-                    Ваш браузер не поддерживает видео.
-                </video>
-                <div class="video-controls">
-                    <button class="control-btn play-btn" title="Воспроизвести/Пауза">
-                        <i class="fas fa-play"></i>
-                    </button>
-                    <button class="control-btn mute-btn" title="Отключить звук">
-                        <i class="fas fa-volume-up"></i>
-                    </button>
-                    <div class="progress-container">
-                        <div class="progress-bar"></div>
-                    </div>
-                    <div class="time-display">0:00 / 0:00</div>
-                    <button class="control-btn fullscreen" title="Полный экран">
-                        <i class="fas fa-expand"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(this.modal);
-
-        this.video = this.modal.querySelector('.video-player') as HTMLVideoElement;
-        this.playBtn = this.modal.querySelector('.play-btn') as HTMLButtonElement;
-        this.muteBtn = this.modal.querySelector('.mute-btn') as HTMLButtonElement;
-        this.fullscreenBtn = this.modal.querySelector('.fullscreen') as HTMLButtonElement;
-        this.progressBar = this.modal.querySelector('.progress-bar') as HTMLDivElement;
-        this.progressContainer = this.modal.querySelector('.progress-container') as HTMLDivElement;
-        this.timeDisplay = this.modal.querySelector('.time-display') as HTMLDivElement;
-        this.closeBtn = this.modal.querySelector('.close-btn') as HTMLButtonElement;
-    }
-
-    private setupEventListeners(): void {
-        this.playBtn.addEventListener('click', () => this.togglePlay());
-        this.video.addEventListener('click', () => this.togglePlay());
-        
-        this.muteBtn.addEventListener('click', () => this.toggleMute());
-        
-        this.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
-        
-        this.progressContainer.addEventListener('click', (e) => this.setProgress(e));
-        
-        this.video.addEventListener('timeupdate', () => this.updateProgress());
-        this.video.addEventListener('loadedmetadata', () => this.updateTimeDisplay());
-        
-        this.closeBtn.addEventListener('click', () => this.close());
-        this.modal.addEventListener('click', (e) => {
-            if (e.target === this.modal) this.close();
-        });
-        
-        document.addEventListener('keydown', (e) => this.handleKeyPress(e));
-        
-        this.video.addEventListener('play', () => this.updatePlayState(true));
-        this.video.addEventListener('pause', () => this.updatePlayState(false));
-        this.video.addEventListener('ended', () => this.updatePlayState(false));
-        
-        document.addEventListener('fullscreenchange', () => this.handleFullscreenChange());
-    }
-
-    public open(videoUrl: string, thumbnailUrl?: string): void {
-        this.video.src = videoUrl;
-        this.video.poster = thumbnailUrl || '';
-        
-        this.modal.classList.add('active');
-        document.body.style.overflow = 'hidden';
-        
-        this.video.play().catch(() => {
-            console.log('Автовоспроизведение заблокировано');
-        });
-    }
-
-    public close(): void {
-        this.modal.classList.remove('active');
-        document.body.style.overflow = '';
-        this.video.pause();
-        this.video.currentTime = 0;
-        this.updatePlayState(false);
-        
-        setTimeout(() => {
-            this.video.src = '';
-        }, 300);
-    }
-
-    private togglePlay(): void {
-        if (this.video.paused) {
-            this.video.play();
-        } else {
-            this.video.pause();
-        }
-    }
-
-    private toggleMute(): void {
-        this.isMuted = !this.isMuted;
-        this.video.muted = this.isMuted;
-        
-        const icon = this.muteBtn.querySelector('i') as HTMLElement;
-        if (this.isMuted) {
-            icon.className = 'fas fa-volume-mute';
-            this.muteBtn.classList.add('muted');
-        } else {
-            icon.className = 'fas fa-volume-up';
-            this.muteBtn.classList.remove('muted');
-        }
-    }
-
-    private toggleFullscreen(): void {
-        if (!document.fullscreenElement) {
-            this.modal.requestFullscreen?.();
-        } else {
-            document.exitFullscreen?.();
-        }
-    }
-
-    private handleFullscreenChange(): void {
-        this.isFullscreen = !!document.fullscreenElement;
-        
-        const icon = this.fullscreenBtn.querySelector('i') as HTMLElement;
-        if (this.isFullscreen) {
-            icon.className = 'fas fa-compress';
-        } else {
-            icon.className = 'fas fa-expand';
-        }
-    }
-
-    private setProgress(e: MouseEvent): void {
-        const rect = this.progressContainer.getBoundingClientRect();
-        const percent = (e.clientX - rect.left) / rect.width;
-        this.video.currentTime = percent * this.video.duration;
-    }
-
-    private updateProgress(): void {
-        const percent = (this.video.currentTime / this.video.duration) * 100;
-        this.progressBar.style.width = `${percent}%`;
-        this.updateTimeDisplay();
-    }
-
-    private updateTimeDisplay(): void {
-        const currentTime = this.formatTime(this.video.currentTime);
-        const duration = this.formatTime(this.video.duration);
-        this.timeDisplay.textContent = `${currentTime} / ${duration}`;
-    }
-
-    private formatTime(seconds: number): string {
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    }
-
-    private updatePlayState(playing: boolean): void {
-        this.isPlaying = playing;
-        const icon = this.playBtn.querySelector('i') as HTMLElement;
-        icon.className = playing ? 'fas fa-pause' : 'fas fa-play';
-    }
-
-    private handleKeyPress(e: KeyboardEvent): void {
-        if (!this.modal.classList.contains('active')) return;
-
-        switch (e.code) {
-            case 'Space':
-                e.preventDefault();
-                this.togglePlay();
-                break;
-            case 'Escape':
-                if (this.isFullscreen) {
-                    this.toggleFullscreen();
-                } else {
-                    this.close();
-                }
-                break;
-            case 'KeyM':
-                this.toggleMute();
-                break;
-            case 'ArrowLeft':
-                this.video.currentTime = Math.max(0, this.video.currentTime - 5);
-                break;
-            case 'ArrowRight':
-                this.video.currentTime = Math.min(this.video.duration, this.video.currentTime + 5);
-                break;
-            case 'KeyF':
-                this.toggleFullscreen();
-                break;
-        }
-    }
-}
-
-import { WebSocketManager } from './websocket.js';
-
-interface ApiResponse<T> {
-    data?: T;
-    messages?: T;
-    result?: T;
-    [key: string]: any;
-}
-
-class FileUploader {
-    private api: ProfileAPI;
-    private onUploadComplete: (url: string, file: File) => void;
-    private onUploadError: (error: string) => void;
-    private getChatId: () => number | null;
-
-    constructor(
-        api: ProfileAPI,
-        onUploadComplete: (url: string, file: File) => void,
-        onUploadError: (error: string) => void,
-        getChatId: () => number | null
-    ) {
-        this.api = api;
-        this.onUploadComplete = onUploadComplete;
-        this.onUploadError = onUploadError;
-        this.getChatId = getChatId;
-    }
-
-    async uploadFile(file: File, progressCallback?: (messageId: number, progress: number) => void): Promise<void> {
-        try {
-            console.log(`🔍 FileUploader.uploadFile вызван с файлом:`, {
-                name: file.name,
-                type: file.type,
-                size: file.size
-            });
-            
-            if (!this.api.validateFileSize(file, 1024)) {
-                throw new Error(`Файл слишком большой. Максимальный размер: 1024MB`);
-            }
-            
-            const fileType = this.api.getFileType(file);
-            const chatId = this.getChatId();
-            
-            if (!chatId) {
-                throw new Error('Чат не выбран');
-            }
-            
-            if (fileType === 'video') {
-                console.log('🎥 Загрузка видео: создаем пустое сообщение...');
-                const messageId = await this.api.createEmptyMessage(chatId, 'video');
-                console.log('✅ Пустое сообщение создано с ID:', messageId);
-                
-                // Создаем thumbnail локально
-                const thumbnail = await this.createVideoThumbnail(file);
-                
-                // Показываем сообщение с индикатором загрузки
-                if (progressCallback) {
-                    progressCallback(messageId, 0);
-                }
-                
-                console.log('📤 Загружаем видео файл...');
-                const fileUrl = await this.api.uploadFile(file, messageId);
-                console.log('✅ Видео загружено:', fileUrl);
-                
-                if (progressCallback) {
-                    progressCallback(messageId, 100);
-                }
-                
-                this.onUploadComplete(fileUrl, file);
-            } else {
-                const fileUrl = await this.api.uploadFile(file);
-                this.onUploadComplete(fileUrl, file);
-            }
-
-        } catch (error: any) {
-            console.error('❌ Ошибка загрузки файла:', error);
-            this.onUploadError(error.message || 'Не удалось загрузить файл');
-        }
-    }
-
-    private async createVideoThumbnail(file: File): Promise<string> {
-        return new Promise((resolve) => {
-            const video = document.createElement('video');
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            video.preload = 'metadata';
-            video.src = URL.createObjectURL(file);
-            
-            video.addEventListener('loadeddata', () => {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                video.currentTime = 1; // Берем кадр с 1 секунды
-            });
-            
-            video.addEventListener('seeked', () => {
-                if (ctx) {
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    const thumbnail = canvas.toDataURL('image/jpeg', 0.7);
-                    URL.revokeObjectURL(video.src);
-                    resolve(thumbnail);
-                }
-            });
-            
-            video.addEventListener('error', () => {
-                URL.revokeObjectURL(video.src);
-                resolve('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjMzczODNkIi8+CjxwYXRoIGQ9Ik0xNjAgMTI1VjE3NUwyMDAgMTUwTDE2MCAxMjVaIiBmaWxsPSIjNjE2MTZiIi8+Cjwvc3ZnPg==');
-            });
-        });
-    }
-
-    createFileInput(accept: string = '*'): HTMLInputElement {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = accept;
-        input.style.display = 'none';
-        
-        input.addEventListener('change', (e) => {
-            const target = e.target as HTMLInputElement;
-            if (target.files && target.files[0]) {
-                const selectedFile = target.files[0];
-                console.log(`📁 Файл выбран из input:`, {
-                    name: selectedFile.name,
-                    type: selectedFile.type,
-                    size: selectedFile.size
-                });
-                this.uploadFile(selectedFile);
-            }
-            target.value = '';
-        });
-
-        document.body.appendChild(input);
-        return input;
-    }
-
-    setupDropZone(dropZone: HTMLElement): void {
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('drag-over');
-        });
-
-        dropZone.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('drag-over');
-        });
-
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('drag-over');
-            
-            if (e.dataTransfer && e.dataTransfer.files.length > 0) {
-                const file = e.dataTransfer.files[0];
-                this.uploadFile(file);
-            }
-        });
-    }
-}
+import { VideoPlayer } from './videoPlayer.js';
+import { FileUploader } from './fileUploader.js';
+import { ProfileManager } from './profileManager.js';
+import { MessageManager } from './messageManager.js';
 
 class HomeManager {
     private api!: ProfileAPI;
     private currentUser: User | null = null;
     private currentChat: Chat | null = null;
-    private currentProfile: any = null;
     private chats: Chat[] = [];
     private chatOffset: number = 0;
-    private wsManager: WebSocketManager | null = null;
-
-    private tempMessageIds: Set<string> = new Set();
     private searchManager!: SearchManager;
+    private fileInput: HTMLInputElement | null = null;
+    
+    // Менеджеры
+    private videoPlayer!: VideoPlayer;
     private groupManager!: GroupManager;
     private fileUploader!: FileUploader;
-    private fileInput: HTMLInputElement | null = null;
-    private videoPlayer!: VideoPlayer;
+    private profileManager!: ProfileManager;
+    private messageManager!: MessageManager;
 
     constructor() {
         if (!this.checkAuth()) {
@@ -396,7 +30,7 @@ class HomeManager {
         }
         
         this.api = new ProfileAPI();
-        this.videoPlayer = new VideoPlayer();
+        this.initManagers();
         this.init();
     }
 
@@ -408,105 +42,52 @@ class HomeManager {
         return true;
     }
 
-    private async init(): Promise<void> {
-        try {
-            await this.loadUserData();
-            await this.loadChats();
-            
-            this.searchManager = new SearchManager(this.api, this);
-            this.groupManager = new GroupManager(this.api, this);
-            
-            this.initFileUploader();
-            this.setupEventListeners();
-            this.setupProfileClickHandlers();
-            this.setupProfileModalHandlers();
-            this.setupGroupProfileModalHandlers();
-
-            this.renderChats();
-        } catch (error) {
-            this.handleAuthError(error);
-        }
-    }
-
-    private handleAuthError(error: any): void {
-        if (error.message?.includes('401') || error.message?.includes('JWT')) {
-            authManager.logout();
-            window.location.href = 'index.html';
-        }
-    }
-
-    private initFileUploader(): void {
+    private initManagers(): void {
+        this.videoPlayer = new VideoPlayer();
+        this.groupManager = new GroupManager(this.api, this);
         this.fileUploader = new FileUploader(
             this.api,
             (url: string, file: File) => this.onFileUploadComplete(url, file),
             (error: string) => this.showError(error),
             () => this.currentChat?.id || null
         );
+        this.profileManager = new ProfileManager(this.api, this.groupManager);
+        this.messageManager = new MessageManager(this.api, this.videoPlayer);
     }
 
-    private async onFileUploadComplete(url: string, file: File): Promise<void> {
-        if (this.currentChat) {
-            const fileType = this.api.getFileType(file);
+    private async init(): Promise<void> {
+        try {
+            await this.loadUserData();
             
-            // Для видео НЕ отправляем через WebSocket - сообщение уже создано через createEmptyMessage!
-            if (fileType === 'video') {
-                console.log('✅ Видео загружено, сообщение уже создано, не отправляем через WS');
-                const shortDescription = this.getFileShortDescription(fileType, file.name);
-                this.updateChatPosition(this.currentChat!.id, shortDescription);
-                // Перезагружаем сообщения чтобы показать загруженное видео
-                try {
-                    const messages = await this.api.getMessages(this.currentChat.id);
-                    await this.renderMessages(messages);
-                    this.scrollToBottom();
-                } catch (error) {
-                    console.error('Failed to reload messages:', error);
-                }
-            } else {
-                // Для остальных файлов отправляем через WebSocket
-                this.sendMessageWithFile(url, file);
-            }
+            this.groupManager.setCurrentUser(this.currentUser!);
+            this.profileManager.setCurrentUser(this.currentUser!);
+            this.messageManager.setCurrentUser(this.currentUser!);
+            
+            await this.loadChats();
+            
+            this.searchManager = new SearchManager(this.api, this);
+            
+            this.setupEventListeners();
+            this.setupProfileClickHandlers();
+            this.profileManager.setupProfileModalHandlers();
+            this.profileManager.setupGroupProfileModalHandlers();
+            this.profileManager.setupChatHeaderClickHandlers();
+            
+            this.renderChats();
+            this.messageManager.setupMessageActions();
+            
+        } catch (error) {
+            console.error('❌ HomeManager initialization failed:', error);
+            this.handleAuthError(error);
         }
     }
-
-    private getFileShortDescription(fileType: string, fileName: string): string {
-        switch (fileType) {
-            case 'image': return '📷 Фото';
-            case 'video': return '🎥 Видео';
-            case 'audio': return '🎵 Аудио';
-            case 'pdf': return '📄 Документ';
-            case 'document': return '📄 Документ';
-            default: return '📎 Файл';
-        }
-    }
-
-    private sendMessageWithFile(fileUrl: string, file: File): void {
-        const fileType = this.api.getFileType(file);
-        let messageContent = '';
+    
+    private handleAuthError(error: any): void {
+        console.error('🔐 Auth error:', error);
         
-        switch (fileType) {
-            case 'image':
-                messageContent = fileUrl;
-                break;
-            case 'video':
-                messageContent = `${fileUrl}`;
-                break;
-            case 'audio':
-                messageContent = `${fileUrl}`;
-                break;
-            case 'pdf':
-                messageContent = `${fileUrl}`;
-                break;
-            case 'document':
-                messageContent = `${fileUrl}`;
-                break;
-            default:
-                messageContent = `${fileUrl}`;
-        }
-        
-        if (this.wsManager) {
-            this.wsManager.sendMessage(messageContent, fileType);
-            const shortDescription = this.getFileShortDescription(fileType, file.name);
-            this.updateChatPosition(this.currentChat!.id, shortDescription);
+        if (error.message?.includes('401') || error.message?.includes('JWT') || error.message?.includes('token')) {
+            authManager.logout();
+            window.location.href = 'index.html';
         }
     }
 
@@ -514,28 +95,35 @@ class HomeManager {
         try {
             this.currentUser = await this.api.getProfile();
             this.updateUserUI();
+            
         } catch (error) {
-            console.error('Failed to load user:', error);
+            console.error('❌ Failed to load user:', error);
+            throw error;
         }
     }
-
+    
     private updateUserUI(): void {
         if (!this.currentUser) return;
-
+    
         const userNameElement = document.getElementById('userName');
         const userAvatarElement = document.getElementById('userAvatar') as HTMLImageElement;
-
+        const userUsernameElement = document.querySelector('.user-username');
+    
         if (userNameElement) {
             userNameElement.textContent = this.currentUser.name;
             userNameElement.style.cursor = 'pointer';
         }
-
+    
         if (userAvatarElement) {
             const avatarUrl = this.currentUser.avatar_url || this.currentUser.avatar || this.currentUser.url;
             if (avatarUrl) {
                 userAvatarElement.src = avatarUrl;
             }
             userAvatarElement.style.cursor = 'pointer';
+        }
+    
+        if (userUsernameElement) {
+            userUsernameElement.textContent = `@${this.currentUser.username}`;
         }
     }
 
@@ -545,316 +133,56 @@ class HomeManager {
 
         if (userNameElement) {
             userNameElement.addEventListener('click', () => {
-                console.log('Клик по имени пользователя');
-                this.openMyProfile();
+                this.profileManager.openMyProfile();
             });
         }
 
         if (userAvatarElement) {
             userAvatarElement.addEventListener('click', () => {
-                console.log('Клик по аватару пользователя');
-                this.openMyProfile();
+                this.profileManager.openMyProfile();
             });
         }
     }
 
-    private openMyProfile(): void {
-        this.showProfileModal(this.currentUser);
-    }
-
-    private async openOtherUserProfile(): Promise<void> {
-        if (!this.currentChat) return;
-
-        try {
-            const profile = await this.api.fetchProfile(this.currentChat);
-            if (this.currentChat.is_group) {
-                this.showGroupProfileModal(profile as GroupProfile);
-            } else {
-                this.showProfileModal(profile as User);
-            }
-        } catch (error) {
-            console.error('Failed to fetch profile:', error);
-            this.showError('Не удалось загрузить профиль.');
-        }
-    }
-
-    private showProfileModal(user: User | null): void {
-        const modal = document.getElementById('profileModal');
-        if (!modal || !user) {
-            console.error('Модальное окно профиля или пользователь не найдены.');
-            return;
-        }
-
-        const isMyProfile = user.id === this.currentUser?.id;
-
-        // Обновляем заголовок
-        const modalTitle = modal.querySelector('.modal-title') as HTMLElement;
-        if (modalTitle) {
-            modalTitle.textContent = isMyProfile ? 'Мой профиль' : 'Профиль пользователя';
-        }
-
-        // Заполняем данные
-        const avatarImg = document.getElementById('profileModalAvatar') as HTMLImageElement;
-        const nameInput = document.getElementById('profileName') as HTMLInputElement;
-        const usernameInput = document.getElementById('profileUsername') as HTMLInputElement;
-        const bioTextarea = document.getElementById('profileBio') as HTMLTextAreaElement;
-
-        if (avatarImg) {
-            const avatarUrl = user.avatar_url || user.avatar || user.url;
-            avatarImg.src = avatarUrl || 'https://via.placeholder.com/120';
-        }
-        if (nameInput) {
-            nameInput.value = user.name || '';
-            nameInput.readOnly = true;
-        }
-        if (usernameInput) {
-            usernameInput.value = user.username || '';
-            usernameInput.readOnly = true;
-        }
-        if (bioTextarea) {
-            bioTextarea.value = user.bio || '';
-            bioTextarea.readOnly = true;
-        }
-
-        // Управление видимостью кнопок
-        const editBtn = document.getElementById('editProfileBtn');
-        const saveBtn = document.getElementById('saveProfileBtn');
-        const cancelBtn = document.getElementById('cancelProfileBtn');
-        const changeAvatarBtn = document.getElementById('changeAvatarBtn');
-
-        if (isMyProfile) {
-            if(editBtn) editBtn.style.display = 'block';
-            if(saveBtn) saveBtn.style.display = 'none';
-            if(cancelBtn) cancelBtn.style.display = 'none';
-            if(changeAvatarBtn) changeAvatarBtn.style.display = 'block';
-        } else {
-            if(editBtn) editBtn.style.display = 'none';
-            if(saveBtn) saveBtn.style.display = 'none';
-            if(cancelBtn) cancelBtn.style.display = 'none';
-            if(changeAvatarBtn) changeAvatarBtn.style.display = 'none';
-        }
-        
-        // Показываем модалку
-        modal.classList.remove('hidden');
-    }
-
-    private setupProfileModalHandlers(): void {
-        const modal = document.getElementById('profileModal');
-        if (!modal) return;
-
-        const closeBtn = document.getElementById('closeProfileModal');
-        const cancelBtn = document.getElementById('cancelProfileBtn');
-        const saveBtn = document.getElementById('saveProfileBtn');
-        const editBtn = document.getElementById('editProfileBtn');
-        const changeAvatarBtn = document.getElementById('changeAvatarBtn');
-        const overlay = modal.querySelector('.modal-overlay');
-
-        const nameInput = document.getElementById('profileName') as HTMLInputElement;
-        const usernameInput = document.getElementById('profileUsername') as HTMLInputElement;
-        const bioTextarea = document.getElementById('profileBio') as HTMLTextAreaElement;
-
-        const setReadOnly = (isReadOnly: boolean) => {
-            nameInput.readOnly = isReadOnly;
-            usernameInput.readOnly = isReadOnly;
-            bioTextarea.readOnly = isReadOnly;
-
-            if(editBtn) editBtn.style.display = isReadOnly ? 'block' : 'none';
-            if(saveBtn) saveBtn.style.display = isReadOnly ? 'none' : 'block';
-            if(cancelBtn) cancelBtn.style.display = isReadOnly ? 'none' : 'block';
-        };
-
-        const closeModal = () => {
-            modal.classList.add('hidden');
-            setReadOnly(true); // Возвращаем в состояние read-only при закрытии
-        };
-
-        closeBtn?.addEventListener('click', closeModal);
-        cancelBtn?.addEventListener('click', closeModal);
-        overlay?.addEventListener('click', closeModal);
-        editBtn?.addEventListener('click', () => setReadOnly(false));
-
-        saveBtn?.addEventListener('click', async () => {
-            await this.saveProfile();
-            setReadOnly(true);
-        });
-
-        changeAvatarBtn?.addEventListener('click', () => this.changeAvatar());
-    }
-
-    private showGroupProfileModal(profile: GroupProfile): void {
-        const modal = document.getElementById('groupProfileModal');
-        if (!modal) return;
-
-        (document.getElementById('groupProfileModalTitle') as HTMLElement).textContent = profile.name;
-        (document.getElementById('groupProfileModalAvatar') as HTMLImageElement).src = profile.avatar_url || 'https://via.placeholder.com/120';
-        
-        const nameInput = document.getElementById('groupProfileName') as HTMLInputElement;
-        const bioTextarea = document.getElementById('groupProfileBio') as HTMLTextAreaElement;
-        nameInput.value = profile.name;
-        bioTextarea.value = profile.bio || '';
-        nameInput.readOnly = true;
-        bioTextarea.readOnly = true;
-
-        (document.getElementById('groupMemberCount') as HTMLElement).textContent = profile.count_members.toString();
-
-        const membersList = document.getElementById('groupMembersList') as HTMLElement;
-        membersList.innerHTML = '';
-        profile.members.forEach((member: User) => {
-            const memberElement = document.createElement('div');
-            memberElement.className = 'member-item';
-            const avatarUrl = member.avatar_url || member.avatar || member.url || 'https://via.placeholder.com/40';
-            memberElement.innerHTML = `
-                <img src="${avatarUrl}" alt="${member.name}" class="member-avatar">
-                <div class="member-info">
-                    <span class="member-name">${member.name}</span>
-                    <span class="member-status ${member.online ? 'status-online' : 'status-offline'}">${member.online ? 'online' : 'offline'}</span>
-                </div>
-            `;
-            membersList.appendChild(memberElement);
-        });
-
-        const editBtn = document.getElementById('editGroupProfileBtn');
-        const addMemberBtn = document.getElementById('addGroupMemberBtn');
-
-        if (editBtn) editBtn.style.display = profile.is_admin ? 'block' : 'none';
-        if (addMemberBtn) addMemberBtn.style.display = profile.is_admin ? 'block' : 'none';
-
-        modal.classList.remove('hidden');
-    }
-
-    private setupGroupProfileModalHandlers(): void {
-        const modal = document.getElementById('groupProfileModal');
-        if (!modal) return;
-
-        const closeBtn = document.getElementById('closeGroupProfileModal');
-        const overlay = modal.querySelector('.modal-overlay');
-        const editBtn = document.getElementById('editGroupProfileBtn');
-        const saveBtn = document.getElementById('saveGroupProfileBtn');
-        const cancelBtn = document.getElementById('cancelGroupProfileBtn');
-        const addMemberBtn = document.getElementById('addGroupMemberBtn');
-        const leaveBtn = document.getElementById('leaveGroupBtn');
-
-        const nameInput = document.getElementById('groupProfileName') as HTMLInputElement;
-        const bioTextarea = document.getElementById('groupProfileBio') as HTMLTextAreaElement;
-
-        const setReadOnly = (isReadOnly: boolean) => {
-            nameInput.readOnly = isReadOnly;
-            bioTextarea.readOnly = isReadOnly;
-
-            if(editBtn) editBtn.style.display = isReadOnly ? 'block' : 'none';
-            if(saveBtn) saveBtn.style.display = isReadOnly ? 'none' : 'block';
-            if(cancelBtn) cancelBtn.style.display = isReadOnly ? 'none' : 'block';
-            if(addMemberBtn) addMemberBtn.style.display = isReadOnly ? 'block' : 'none';
-            if(leaveBtn) leaveBtn.style.display = isReadOnly ? 'block' : 'none';
-        };
-
-        const closeModal = () => {
-            modal.classList.add('hidden');
-            setReadOnly(true);
-        };
-
-        closeBtn?.addEventListener('click', closeModal);
-        overlay?.addEventListener('click', closeModal);
-        cancelBtn?.addEventListener('click', closeModal);
-        editBtn?.addEventListener('click', () => setReadOnly(false));
-
-        saveBtn?.addEventListener('click', async () => {
-            await this.saveGroupProfile();
-            setReadOnly(true);
-        });
-    }
-
-    private async saveGroupProfile(): Promise<void> {
-        const nameInput = document.getElementById('groupProfileName') as HTMLInputElement;
-        const bioTextarea = document.getElementById('groupProfileBio') as HTMLTextAreaElement;
-
-        if (!this.currentChat) return;
-
-        try {
-            await this.api.setName(this.currentChat.id, true, nameInput.value);
-            await this.api.setBio(this.currentChat.id, true, bioTextarea.value);
-
-            alert('Профиль группы успешно обновлен!');
-        } catch (error) {
-            console.error('Ошибка сохранения профиля группы:', error);
-            alert('Не удалось сохранить профиль группы');
-        }
-    }
-
-    private async saveProfile(): Promise<void> {
-        const nameInput = document.getElementById('profileName') as HTMLInputElement;
-        const usernameInput = document.getElementById('profileUsername') as HTMLInputElement;
-        const bioTextarea = document.getElementById('profileBio') as HTMLTextAreaElement;
-
-        if (!this.currentUser) return;
-
-        try {
-            // Сохраняем каждое поле отдельно
-            if (nameInput.value !== this.currentUser.name) {
-                await this.api.updateProfileField(this.currentUser.id, 'name', nameInput.value);
-                this.currentUser.name = nameInput.value;
-            }
-
-            if (usernameInput.value !== this.currentUser.username) {
-                await this.api.updateProfileField(this.currentUser.id, 'username', usernameInput.value);
-                this.currentUser.username = usernameInput.value;
-            }
-
-            if (bioTextarea.value !== this.currentUser.bio) {
-                await this.api.updateProfileField(this.currentUser.id, 'bio', bioTextarea.value);
-                this.currentUser.bio = bioTextarea.value;
-            }
-
-            // Обновляем UI
-            this.updateUserUI();
-
-            // Закрываем модалку
-            document.getElementById('profileModal')?.classList.add('hidden');
+    private async onFileUploadComplete(url: string, file: File): Promise<void> {
+        if (this.currentChat) {
+            const fileType = this.api.getFileType(file);
             
-            alert('Профиль успешно обновлен!');
-        } catch (error) {
-            console.error('Ошибка сохранения профиля:', error);
-            alert('Не удалось сохранить профиль');
+            if (fileType === 'video') {
+                const shortDescription = this.fileUploader.getFileShortDescription(fileType, file.name);
+                this.updateChatPosition(this.currentChat!.id, shortDescription);
+                try {
+                    const messages = await this.api.getMessages(this.currentChat.id);
+                    await this.messageManager.renderMessages(messages);
+                    this.scrollToBottom();
+                } catch (error) {
+                    console.error('Failed to reload messages:', error);
+                }
+            } else {
+                this.sendMessageWithFile(url, file);
+            }
         }
     }
 
-    private changeAvatar(): void {
-        // TODO: Реализовать загрузку аватара
-        console.log('Смена аватара');
-        alert('Функция смены аватара будет реализована');
+    private sendMessageWithFile(fileUrl: string, file: File): void {
+        // Для не-видео файлов можно добавить отправку через WebSocket
+        // если потребуется
+        console.log('File uploaded:', fileUrl, file);
     }
 
     private async loadChats(): Promise<void> {
         try {
             const newChats = await this.api.getChats(this.chatOffset);
+            
             if (newChats.length > 0) {
-                this.chats.push(...this.normalizeApiResponse<Chat[]>(newChats));
+                const normalizedChats = this.normalizeApiResponse<Chat[]>(newChats);
+                this.chats.push(...normalizedChats);
                 this.chatOffset += newChats.length;
             }
         } catch (error) {
-            console.error('Failed to load chats:', error);
+            console.error('❌ Failed to load chats:', error);
+            throw error;
         }
-    }
-
-    private normalizeApiResponse<T>(response: any): T {
-        if (Array.isArray(response)) {
-            return response as T;
-        }
-        
-        if (response && typeof response === 'object') {
-            const apiResponse = response as ApiResponse<T>;
-            if (apiResponse.data && Array.isArray(apiResponse.data)) {
-                return apiResponse.data as T;
-            }
-            if (apiResponse.messages && Array.isArray(apiResponse.messages)) {
-                return apiResponse.messages as T;
-            }
-            if (apiResponse.result && Array.isArray(apiResponse.result)) {
-                return apiResponse.result as T;
-            }
-        }
-        
-        return [] as unknown as T;
     }
 
     private setupEventListeners(): void {
@@ -886,7 +214,7 @@ class HomeManager {
         const chatsList = document.getElementById('chatsList');
         if (chatsList) {
             chatsList.addEventListener('scroll', () => {
-                if (chatsList.scrollTop + chatsList.clientHeight >= chatsList.scrollHeight - 5) { // 5px buffer
+                if (chatsList.scrollTop + chatsList.clientHeight >= chatsList.scrollHeight - 5) {
                     this.loadChats().then(() => this.renderChats());
                 }
             });
@@ -927,13 +255,11 @@ class HomeManager {
     }
 
     public async selectChat(chat: Chat): Promise<void> {    
-        this.currentChat = chat;
+        this.setCurrentChat(chat);
         
-        if (this.wsManager) {
-            this.wsManager.disconnect();
-            this.wsManager = null;
-        }
-
+        this.messageManager.setCurrentChat(chat);
+        this.profileManager.setCurrentChat(chat);
+        
         document.querySelectorAll('.chat-item').forEach(item => {
             item.classList.remove('active');
         });
@@ -953,11 +279,12 @@ class HomeManager {
             }
 
             const messages = await this.api.getMessages(numericChatId);
-            this.renderMessages(messages);
-            await this.connectWebSocket(numericChatId);
-            this.setupMessageSending();
+            this.messageManager.renderMessages(messages);
+            await this.messageManager.connectWebSocket(numericChatId);
+            this.messageManager.setupMessageSending();
             
         } catch (error) {
+            console.error('Failed to load chat:', error);
             this.showError('Не удалось загрузить чат');
         }
     }
@@ -965,15 +292,11 @@ class HomeManager {
     private renderChats(): void {
         const chatsList = document.getElementById('chatsList');
         if (!chatsList) {
-            console.error('chatsList element not found!');
+            console.error('❌ chatsList element not found!');
             return;
         }
 
-        if (this.chatOffset === 0) {
-            chatsList.innerHTML = '';
-        }
-
-        if (!this.chats || this.chats.length === 0) {
+        if (this.chats.length === 0) {
             chatsList.innerHTML = `
                 <div class="empty-chats">
                     <i class="fas fa-comments"></i>
@@ -984,9 +307,14 @@ class HomeManager {
             return;
         }
 
+        chatsList.innerHTML = '';
+
         this.chats.forEach(chat => {
-            const chatElement = this.createChatElement(chat);
-            chatsList.appendChild(chatElement);
+            const existingElement = chatsList.querySelector(`[data-chat-id="${chat.id}"]`);
+            if (!existingElement) {
+                const chatElement = this.createChatElement(chat);
+                chatsList.appendChild(chatElement);
+            }
         });
     }
 
@@ -995,14 +323,14 @@ class HomeManager {
         chatDiv.className = 'chat-item';
         chatDiv.setAttribute('data-chat-id', chat.id.toString());
         
-        const avatar = chat.avatar_url || chat.avatar || chat.url;
+        const avatar = chat.avatar_url || chat.avatar || chat.url || 'https://via.placeholder.com/50';
         const lastMessage = chat.last_message || chat.lastMessage || 'Нет сообщений';
         const unreadCount = chat.unread_count || chat.unreadCount || 0;
         const isOnline = chat.online || false;
         const chatName = chat.name || 'Без имени';
 
         const avatarHTML = avatar 
-            ? `<img src="${avatar}" alt="${chatName}">`
+            ? `<img src="${avatar}" alt="${chatName}" onerror="this.src='https://via.placeholder.com/50'">`
             : `<i class="fas fa-user"></i>`;
 
         chatDiv.innerHTML = `
@@ -1026,75 +354,92 @@ class HomeManager {
         return chatDiv;
     }
 
-    private async connectWebSocket(chatId: number): Promise<void> {
-        this.wsManager = new WebSocketManager(chatId);
+    public setCurrentChat(chat: Chat): void {
+        this.currentChat = chat;
         
-        this.wsManager.addMessageHandler((message: Message) => {
-            // Отлавливаем системные сообщения об обновлении онлайна
-            if (message.type === 'online_count') {
-                this.updateGroupOnlineCount(message.content);
-            } else if (message.type === 'group_profile_update') {
-                this.handleGroupProfileUpdate(message.content as unknown as GroupProfile);
+        if (this.groupManager) {
+            this.groupManager.setCurrentChatId(chat.id);
+        }
+        
+        this.updateChatHeader();
+    }
+
+    private updateChatHeader(): void {
+        if (!this.currentChat) return;
+    
+        const chatName = document.getElementById('currentChatName');
+        const chatAvatar = document.getElementById('currentChatAvatar') as HTMLImageElement;
+        const chatStatus = document.getElementById('currentChatStatus');
+    
+        const avatar = this.currentChat.avatar_url || this.currentChat.avatar || this.currentChat.url;
+        const chatNameText = this.currentChat.name || 'Без имени';
+    
+        if (chatName) {
+            chatName.textContent = chatNameText;
+        }
+    
+        if (chatAvatar) {
+            const avatarUrl = avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face';
+            chatAvatar.src = avatarUrl;
+            
+            chatAvatar.onerror = () => {
+                chatAvatar.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face';
+            };
+        }
+    
+        if (chatStatus) {
+            if (this.currentChat.is_group) {
+                const memberCount = (this.currentChat as any).count_members || 0;
+                chatStatus.textContent = `${memberCount} участников`; 
             } else {
-                this.handleNewMessage(message);
+                const isOnline = this.currentChat.online || false;
+                chatStatus.textContent = isOnline ? 'online' : 'offline';
+                chatStatus.className = `chat-header-status online-status ${isOnline ? 'online' : ''}`;
             }
-        });
-
-        this.wsManager.addChatUpdateHandler((chatId: number, lastMessage: string) => {
-            this.updateChatPosition(chatId, lastMessage);
-        });
-
-        try {
-            await this.wsManager.connect();
-        } catch (error) {
-            this.showError('Не удалось подключиться к чату в реальном времени');
         }
     }
 
-    private handleGroupProfileUpdate(profile: GroupProfile): void {
-        const modal = document.getElementById('groupProfileModal');
-        if (!modal || modal.classList.contains('hidden')) {
-            // Модальное окно не открыто, ничего не делаем
+    private showChatWindow(): void {
+        const welcomeSection = document.getElementById('welcomeSection');
+        const chatSection = document.getElementById('chatSection');
+
+        if (welcomeSection && chatSection) {
+            welcomeSection.classList.add('hidden');
+            chatSection.classList.remove('hidden');
+        } else {
+            console.error('Required sections not found!');
             return;
         }
 
-        // Проверяем, что обновление для текущего открытого чата
-        if (this.currentChat && this.currentChat.id === profile.id) {
-            const membersList = document.getElementById('groupMembersList') as HTMLElement;
-            if (!membersList) return;
+        this.updateChatHeader();
+    }
 
-            (document.getElementById('groupMemberCount') as HTMLElement).textContent = profile.count_members.toString();
+    private showWelcomeScreen(): void {
+        const welcomeSection = document.getElementById('welcomeSection');
+        const chatSection = document.getElementById('chatSection');
 
-            membersList.innerHTML = ''; // Очищаем старый список
-            profile.members.forEach((member: User) => {
-                const memberElement = document.createElement('div');
-                memberElement.className = 'member-item';
-                const avatarUrl = member.avatar_url || member.avatar || member.url || 'https://via.placeholder.com/40';
-                
-                // isOnline может приходить как IsOnline из-за Go
-                const isOnline = member.online || (member as any).IsOnline;
+        if (welcomeSection && chatSection) {
+            chatSection.classList.add('hidden');
+            welcomeSection.classList.remove('hidden');
+        }
+        this.currentChat = null;
+    }
 
-                memberElement.innerHTML = `
-                    <img src="${avatarUrl}" alt="${member.name}" class="member-avatar">
-                    <div class="member-info">
-                        <span class="member-name">${member.name}</span>
-                        <span class="member-status ${isOnline ? 'status-online' : 'status-offline'}">${isOnline ? 'online' : 'offline'}</span>
-                    </div>
-                `;
-                membersList.appendChild(memberElement);
-            });
+    private scrollToBottom(): void {
+        const container = document.getElementById('messagesContainer');
+        if (container) {
+            container.scrollTop = container.scrollHeight;
         }
     }
 
-    private updateGroupOnlineCount(count: string): void {
-        if (!this.currentChat || !this.currentChat.is_group) return;
+    private filterChats(query: string): void {
+        const chats = document.querySelectorAll('.chat-item');
+        const searchTerm = query.toLowerCase();
 
-        const chatStatus = document.getElementById('currentChatStatus');
-        if (chatStatus) {
-            // Предполагаем, что в currentChat есть поле count_members
-            const memberCount = (this.currentChat as any).count_members || 0;
-            chatStatus.textContent = `${memberCount} участников, ${count} онлайн`;
-        }
+        chats.forEach(chat => {
+            const name = chat.querySelector('.chat-name')?.textContent?.toLowerCase() || '';
+            (chat as HTMLElement).style.display = name.includes(searchTerm) ? 'flex' : 'none';
+        });
     }
 
     private updateChatPosition(chatId: number, lastMessage: string): void {
@@ -1187,477 +532,32 @@ class HomeManager {
         }
     }
 
-    private setupMessageSending(): void {
-        const messageInput = document.getElementById('messageInput') as HTMLTextAreaElement;
-        const sendButton = document.getElementById('sendMessageBtn');
-
-        if (!messageInput || !sendButton) {
-            console.error('Message input elements not found');
-            return;
-        }
-
-        sendButton.replaceWith(sendButton.cloneNode(true));
-        const newSendButton = document.getElementById('sendMessageBtn')!;
-
-        const sendMessage = () => {
-            const content = messageInput.value.trim();
-            if (content && this.wsManager && this.currentChat) {
-                try {
-                    const tempId = `temp_${Date.now()}`;
-                    const tempMessage: Message = {
-                        id: -1,
-                        chat_id: this.currentChat.id,
-                        user_id: this.currentUser!.id,
-                        name: this.currentUser!.name,
-                        content: content,
-                        created_at: new Date().toISOString()
-                    };
-                    
-                    this.appendTempMessage(tempMessage, true, tempId);
-                    this.wsManager.sendMessage(content);
-                    messageInput.value = '';
-                    this.adjustTextareaHeight(messageInput);
-                    
-                    this.updateChatPosition(this.currentChat.id, content);
-                    
-                } catch (error) {
-                    this.showError('Не удалось отправить сообщение');
-                }
-            }
-        };
-
-        newSendButton.addEventListener('click', sendMessage);
-
-        messageInput.addEventListener('keydown', (e: KeyboardEvent) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
-
-        messageInput.addEventListener('input', () => {
-            this.adjustTextareaHeight(messageInput);
-        });
-
-        messageInput.focus();
-    }
-
-    private adjustTextareaHeight(textarea: HTMLTextAreaElement): void {
-        textarea.style.height = 'auto';
-        const newHeight = Math.min(textarea.scrollHeight, 80);
-        textarea.style.height = newHeight + 'px';
-        
-        const inputBox = textarea.closest('.message-input-box') as HTMLElement;
-        if (inputBox) {
-            inputBox.style.height = (newHeight + 16) + 'px';
-        }
-    }
-
-    private async handleNewMessage(message: Message): Promise<void> {
-        const messagesContainer = document.getElementById('messagesList');
-        if (!messagesContainer) return;
-
-        if (message.id > 0 && messagesContainer.querySelector(`[data-message-id="${message.id}"]`)) {
-            return;
-        }
-
-        const tempMessages = Array.from(messagesContainer.querySelectorAll('[data-temp-message="true"]'));
-        let tempMessageFound = false;
-
-        for (const tempMsg of tempMessages) {
-            const messageContent = (tempMsg.querySelector('.message-content') as HTMLElement)?.textContent;
-            const isOwnMessage = tempMsg.classList.contains('message-own');
-            const tempId = tempMsg.getAttribute('data-temp-id');
-
-            if (messageContent === message.content &&
-                isOwnMessage === (message.user_id === this.currentUser?.id) &&
-                tempId) {
-                
-                const realMessageElement = await this.createMessageElement(message, isOwnMessage);
-                tempMsg.replaceWith(realMessageElement);
-                tempMessageFound = true;
-                this.tempMessageIds.delete(tempId);
-                break;
-            }
-        }
-
-        if (!tempMessageFound) {
-            const isOwnMessage = message.user_id === this.currentUser?.id;
-            await this.appendMessage(message, isOwnMessage);
-        }
-
-        this.scrollToBottom();
-    }
-
-    private async appendMessage(message: Message, isOwnMessage: boolean): Promise<void> {
-        const messagesList = document.getElementById('messagesList');
-        if (!messagesList) return;
-
-        if (message.id > 0 && messagesList.querySelector(`[data-message-id="${message.id}"]`)) {
-            return;
-        }
-
-        const emptyState = messagesList.querySelector('.empty-chat');
-        if (emptyState) {
-            emptyState.remove();
-        }
-
-        const messageElement = await this.createMessageElement(message, isOwnMessage);
-        messagesList.appendChild(messageElement);
-        this.scrollToBottom();
-    }
-
-    private async appendTempMessage(message: Message, isOwnMessage: boolean, tempId: string): Promise<void> {
-        const messagesList = document.getElementById('messagesList');
-        if (!messagesList) return;
-
-        const emptyState = messagesList.querySelector('.empty-chat');
-        if (emptyState) {
-            emptyState.remove();
-        }
-
-        const messageElement = await this.createMessageElement(message, isOwnMessage);
-        messageElement.setAttribute('data-temp-message', 'true');
-        messageElement.setAttribute('data-temp-id', tempId);
-        messageElement.classList.add('message-sending');
-
-        messagesList.appendChild(messageElement);
-        this.tempMessageIds.add(tempId);
-        this.scrollToBottom();
-    }
-
-    private extractVideoUrl(content: string): string | null {
-        if (!content) return null;
-        
-        const videoRegex = /(https?:\/\/[^\s]+\.(mp4|mov|avi|webm|mkv)(\?[^\s]*)?)/gi;
-        const matches = content.match(videoRegex);
-        
-        if (matches && matches.length > 0) {
-            return matches[0];
+    private normalizeApiResponse<T>(response: any): T {
+        if (Array.isArray(response)) {
+            return response as T;
         }
         
-        return null;
-    }
-
-    private async createMessageElement(message: Message, isOwnMessage: boolean): Promise<HTMLElement> {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${isOwnMessage ? 'message-own' : 'message-other'}`;
-
-    const time = new Date(message.created_at).toLocaleTimeString('ru-RU', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-    });
-
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'message-content';
-
-    // Проверяем, есть ли видео
-    const videoUrl = this.extractVideoUrl(message.content);
-    if (videoUrl) {
-        const thumbnailUrl = message.filename || message.thumbnail_url || message.url || '';
-        console.log(`🖼️ Thumbnail URL for message ${message.id}:`, thumbnailUrl);
-
-        const videoContainer = document.createElement("div");
-        videoContainer.className = "message-video relative cursor-pointer inline-block";
-        videoContainer.dataset.videoUrl = videoUrl;
-        videoContainer.dataset.messageId = message.id.toString();
-
-        const thumbnail = document.createElement("img");
-        thumbnail.src = thumbnailUrl;
-        thumbnail.alt = "Видео превью";
-        thumbnail.className = "video-thumbnail";
-        thumbnail.loading = "lazy"; // Ленивая загрузка thumbnail
-        thumbnail.onerror = () => {
-            thumbnail.src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjMzczODNkIi8+CjxwYXRoIGQ9Ik0xNjAgMTI1VjE3NUwyMDAgMTUwTDE2MCAxMjVaIiBmaWxsPSIjNjE2MTZiIi8+Cjwvc3ZnPg==";
-        };
-
-        // Оверлей с кнопкой play
-        const overlay = document.createElement("div");
-        overlay.className = "video-overlay";
-        overlay.innerHTML = '<i class="fas fa-play-circle"></i>';
-
-        // Индикатор загрузки (скрыт по умолчанию)
-        const loadingIndicator = document.createElement("div");
-        loadingIndicator.className = "video-loading-indicator hidden";
-        loadingIndicator.innerHTML = `
-            <div class="spinner"></div>
-            <div class="loading-progress">0%</div>
-        `;
-
-        const durationSpan = document.createElement("span");
-        durationSpan.className = "video-duration";
-        durationSpan.textContent = "0:00";
-
-        videoContainer.appendChild(thumbnail);
-        videoContainer.appendChild(overlay);
-        videoContainer.appendChild(loadingIndicator);
-        videoContainer.appendChild(durationSpan);
-        contentDiv.appendChild(videoContainer);
-
-        // Ленивая загрузка длительности видео только когда элемент виден
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    this.loadVideoDuration(videoUrl, durationSpan);
-                    observer.unobserve(entry.target);
-                }
-            });
-        }, { threshold: 0.1 });
-        observer.observe(videoContainer);
-
-        // Клик по видео открывает плеер
-        videoContainer.addEventListener("click", () => {
-            this.openVideoPlayer(videoUrl, thumbnailUrl);
-        });
-
-        // Проверяем статус загрузки
-        if (message.is_ready === false) {
-            loadingIndicator.classList.remove('hidden');
-            overlay.classList.add('hidden');
-        }
-
-    } else {
-        // Проверяем картинку
-        const imageUrl = this.extractImageUrl(message.content);
-        if (imageUrl) {
-            const img = document.createElement('img');
-            img.src = imageUrl;
-            img.alt = "Фото";
-            img.className = "w-32 h-32 object-cover rounded-md cursor-pointer mb-1";
-            img.onerror = () => {
-                img.src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9IiNlZWUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9IiNlZWUiIC8+PC9zdmc+";
-            };
-            img.addEventListener("click", () => {
-                window.open(imageUrl, "_blank");
-            });
-            contentDiv.appendChild(img);
-
-            const text = this.extractTextFromImageMessage(message.content);
-            if (text) {
-                const textDiv = document.createElement("div");
-                textDiv.innerHTML = this.formatMessageContent(text);
-                contentDiv.appendChild(textDiv);
-            }
-        } else {
-            contentDiv.innerHTML = this.formatMessageContent(message.content);
-        }
-    }
-
-    messageDiv.appendChild(contentDiv);
-
-    const metaDiv = document.createElement('div');
-    metaDiv.className = 'message-meta';
-    metaDiv.innerHTML = `<span class="message-time">${time}</span>`;
-    messageDiv.appendChild(metaDiv);
-
-    return messageDiv;
-}
-
-
-
-
-    private openVideoPlayer(videoUrl: string, thumbnailUrl: string = ''): void {
-        this.videoPlayer.open(videoUrl, thumbnailUrl);
-    }
-
-    private async getVideoThumbnail(videoUrl: string): Promise<string> {
-        try {
-            return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjMzczODNkIi8+CjxwYXRoIGQ9Ik0xNjAgMTI1VjE3NUwyMDAgMTUwTDE2MCAxMjVaIiBmaWxsPSIjNjE2MTZiIi8+Cjwvc3ZnPg==';
-        } catch (error) {
-            return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjMzczODNkIi8+CjxwYXRoIGQ9Ik0xNjAgMTI1VjE3NUwyMDAgMTUwTDE2MCAxMjVaIiBmaWxsPSIjNjE2MTZiIi8+Cjwvc3ZnPg==';
-        }
-    }
-
-    private loadVideoDuration(videoUrl: string, durationElement: HTMLElement): void {
-        const video = document.createElement('video');
-        video.src = videoUrl;
-        video.preload = 'metadata';
-        
-        video.addEventListener('loadedmetadata', () => {
-            const minutes = Math.floor(video.duration / 60);
-            const seconds = Math.floor(video.duration % 60).toString().padStart(2, '0');
-            durationElement.textContent = `${minutes}:${seconds}`;
-        });
-        
-        video.addEventListener('error', () => {
-            durationElement.textContent = '0:00';
-        });
-    }
-
-    private async getVideoDuration(videoUrl: string): Promise<string> {
-        return new Promise((resolve) => {
-            const video = document.createElement('video');
-            video.src = videoUrl;
-            video.preload = 'metadata';
+        if (response && typeof response === 'object') {
+            const apiResponse = response as any;
             
-            video.addEventListener('loadedmetadata', () => {
-                const minutes = Math.floor(video.duration / 60);
-                const seconds = Math.floor(video.duration % 60).toString().padStart(2, '0');
-                resolve(`${minutes}:${seconds}`);
-            });
-            
-            video.addEventListener('error', () => {
-                resolve('0:00');
-            });
-        });
-    }
-
-    private extractImageUrl(content: string): string | null {
-        if (!content) return null;
-        
-        const imageRegex = /(https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|bmp)(\?[^\s]*)?)/gi;
-        const matches = content.match(imageRegex);
-        
-        if (matches && matches.length > 0) {
-            return matches[0];
-        }
-        
-        return null;
-    }
-
-    private extractTextFromImageMessage(content: string): string {
-        if (!content) return '';
-        
-        const imageUrl = this.extractImageUrl(content);
-        if (!imageUrl) return content;
-        
-        let text = content.replace(imageUrl, '').trim();
-        text = text.replace(/\n+/g, '\n').trim();
-        
-        return text;
-    }
-
-    private async renderMessages(messages: any): Promise<void> {
-        const messagesList = document.getElementById('messagesList');
-        if (!messagesList) return;
-
-        messagesList.innerHTML = '';
-
-        const messagesArray = this.normalizeApiResponse<Message[]>(messages);
-
-        if (!messagesArray || messagesArray.length === 0) {
-            messagesList.innerHTML = `
-                <div class="empty-chat">
-                    <i class="fas fa-comments"></i>
-                    <p>Пока нет сообщений</p>
-                    <span>Начните общение первым!</span>
-                </div>
-            `;
-            return;
-        }
-
-        for (const message of messagesArray) {
-            const isOwnMessage = message.user_id === this.currentUser?.id;
-            const messageElement = await this.createMessageElement(message, isOwnMessage);
-            messagesList.appendChild(messageElement);
-        }
-
-        this.scrollToBottom();
-    }
-
-    private showChatWindow(): void {
-        const welcomeSection = document.getElementById('welcomeSection');
-        const chatSection = document.getElementById('chatSection');
-
-        if (welcomeSection && chatSection) {
-            welcomeSection.classList.add('hidden');
-            chatSection.classList.remove('hidden');
-        } else {
-            console.error('Required sections not found!');
-            return;
-        }
-
-        this.updateChatHeader();
-    }
-
-    private updateChatHeader(): void {
-        if (!this.currentChat) return;
-
-        const chatName = document.getElementById('currentChatName');
-        const chatAvatar = document.getElementById('currentChatAvatar') as HTMLImageElement;
-        const chatStatus = document.getElementById('currentChatStatus');
-
-        const avatar = this.currentChat.avatar_url || this.currentChat.avatar || this.currentChat.url;
-        const chatNameText = this.currentChat.name || 'Без имени';
-
-        if (chatName) {
-            chatName.textContent = chatNameText;
-        }
-
-        if (chatAvatar) {
-            const avatarUrl = avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face';
-            chatAvatar.src = avatarUrl;
-            
-            chatAvatar.onerror = () => {
-                chatAvatar.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face';
-            };
-        }
-
-        if (chatStatus) {
-            if (this.currentChat.is_group) {
-                const memberCount = (this.currentChat as any).count_members || 0;
-                // Начальное значение, будет обновлено по WS
-                chatStatus.textContent = `${memberCount} участников`; 
-            } else {
-                const isOnline = this.currentChat.online || false;
-                chatStatus.textContent = isOnline ? 'online' : 'offline';
-                chatStatus.className = `chat-header-status online-status ${isOnline ? 'online' : ''}`;
+            if (apiResponse.Data && Array.isArray(apiResponse.Data)) {
+                return apiResponse.Data as T;
+            }
+            if (apiResponse.data && Array.isArray(apiResponse.data)) {
+                return apiResponse.data as T;
+            }
+            if (apiResponse.messages && Array.isArray(apiResponse.messages)) {
+                return apiResponse.messages as T;
+            }
+            if (apiResponse.result && Array.isArray(apiResponse.result)) {
+                return apiResponse.result as T;
+            }
+            if (apiResponse.chats && Array.isArray(apiResponse.chats)) {
+                return apiResponse.chats as T;
             }
         }
-
-        const chatHeaderInfo = document.querySelector('.chat-header-info');
-        if (chatHeaderInfo) {
-            const newChatHeaderInfo = chatHeaderInfo.cloneNode(true);
-            chatHeaderInfo.parentNode?.replaceChild(newChatHeaderInfo, chatHeaderInfo);
-
-            newChatHeaderInfo.addEventListener('click', () => {
-                this.openOtherUserProfile();
-            });
-        }
-    }
-
-    private showWelcomeScreen(): void {
-        if (this.wsManager) {
-            this.wsManager.disconnect();
-            this.wsManager = null;
-        }
-
-        const welcomeSection = document.getElementById('welcomeSection');
-        const chatSection = document.getElementById('chatSection');
-
-        if (welcomeSection && chatSection) {
-            chatSection.classList.add('hidden');
-            welcomeSection.classList.remove('hidden');
-        }
-        this.currentChat = null;
-        this.tempMessageIds.clear();
-    }
-
-    private scrollToBottom(): void {
-        const container = document.getElementById('messagesContainer');
-        if (container) {
-            container.scrollTop = container.scrollHeight;
-        }
-    }
-
-    private filterChats(query: string): void {
-        const chats = document.querySelectorAll('.chat-item');
-        const searchTerm = query.toLowerCase();
-
-        chats.forEach(chat => {
-            const name = chat.querySelector('.chat-name')?.textContent?.toLowerCase() || '';
-            (chat as HTMLElement).style.display = name.includes(searchTerm) ? 'flex' : 'none';
-        });
-    }
-
-    private showError(message: string): void {
-        console.error('Error:', message);
-        alert(message);
-    }
-
-    private formatMessageContent(content: string | null | undefined): string {
-        if (!content) return '';
-        return this.escapeHtml(content).replace(/\n/g, '<br>');
+        
+        return [] as unknown as T;
     }
 
     private escapeHtml(unsafe: any): string {
@@ -1673,11 +573,14 @@ class HomeManager {
             .replace(/'/g, "&#039;");
     }
 
+    private showError(message: string): void {
+        console.error('Error:', message);
+        alert(message);
+    }
+
     getChats(): Chat[] {
         return this.chats;
     }
-
-
 }
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -3,14 +3,15 @@ package models
 import "database/sql"
 
 type User struct {
-	ID       uint           `json:"id" db:"id"`
-	UserName string         `json:"username" db:"username"`
-	Name     string         `json:"name" db:"name"`
-	Email    string         `json:"email" db:"email"`
-	Password string         `json:"password" db:"password"`
-	Bio      sql.NullString `json:"bio" db:"bio"`
-	Avatar   string         `json:"url" db:"url"`
-	IsOnline bool           `json:"is_online" db:"is_online"`
+	ID         uint           `json:"id" db:"id"`
+	UserName   string         `json:"username" db:"username"`
+	Name       string         `json:"name" db:"name"`
+	Email      string         `json:"email" db:"email"`
+	Password   string         `json:"password" db:"password"`
+	Bio        sql.NullString `json:"bio" db:"bio"`
+	Avatar     string         `json:"url" db:"url"`
+	IsOnline   bool           `json:"is_online" db:"is_online"`
+	AdminTitle string         `json:"title" db:"title"`
 }
 
 type UserLogin struct {
@@ -28,4 +29,13 @@ type AdminRoots struct {
 	CanChangeAvatar   bool           `json:"can_change_avatar" db:"can_change_avatar"`
 	CanChangeBio      bool           `json:"can_change_bio" db:"can_change_bio"`
 	CanChangeName     bool           `json:"can_change_name" db:"can_change_name"`
+}
+
+type CachedProfile struct {
+	ID        int     `json:"id"`
+	Name      string  `json:"name"`
+	UserName  string  `json:"username"`
+	Bio       *string `json:"bio"`
+	AvatarURL string  `json:"avatar"`
+	Members   []User  `json:"members,omitempty"`
 }

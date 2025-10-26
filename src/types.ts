@@ -3,13 +3,20 @@ export interface User {
     id: number;
     name: string;
     username: string;
-    email: string;
-    bio?: string;
+    email?: string;           // ← добавить email
     avatar_url?: string;
-    avatar?: string;
-    url?: string;
-    online?: boolean;
+    avatar?: string;          // ← добавить avatar
+    url?: string;             // ← добавить url
+    bio?: string;
+    is_online: boolean;
+    online?: boolean;         // ← для обратной совместимости
+    last_seen?: string;
     created_at?: string;
+}
+
+// Хелпер для безопасного доступа
+export function isUserOnline(user: User): boolean {
+    return user.is_online ?? user.online ?? false;
 }
 
 export interface Chat {
@@ -31,6 +38,7 @@ export interface Chat {
     count_members?: number;
     created_at?: string;
     is_admin?: boolean;
+    other_user_id?: number;   // ← для личных чатов
 }
 
 export interface FileUploadResponse {
@@ -61,7 +69,7 @@ export interface Message {
     attachments?: UploadedFile[];
     thumbnail_url?: string;
     url?: string;
-    filename?: string; // Thumbnail filename from DB
+    filename?: string;
 }
 
 export interface GroupProfile {
@@ -70,10 +78,13 @@ export interface GroupProfile {
     bio?: string;
     avatar_url?: string;
     avatar?: string;
+    // УБРАТЬ url: string; // ← этого поля нет в GroupProfile
     count_members: number;
     members: User[];
     created_at?: string;
     is_admin?: boolean;
+    is_online: boolean;
+    is_group: boolean;
 }
 
 // Запросы
@@ -104,6 +115,17 @@ export interface AddUsersRequest {
     users: number[];
 }
 
+export interface AvailableMessageActions {
+    CanEditMessage: boolean;
+    CanDeleteMessage: boolean;
+}
+
+export interface MessageActionsResponse {
+    Code: number;
+    Message: string;
+    Data: AvailableMessageActions;
+}
+
 export interface RemoveUserRequest {
     chat_id: number;
     users: number[];
@@ -123,12 +145,17 @@ export interface DeleteMessageRequest {
     message_id: number;
 }
 
+export interface CreateGroupRequest {
+    name: string;
+    is_group: boolean;
+    users?: number[];
+}
+
 // Ответы API
 export interface ApiResponse<T = any> {
     Code: number;
     Message: string;
     Data?: T;
-    // Альтернативные варианты названий полей
     code?: number;
     message?: string; 
     data?: T;
@@ -141,7 +168,6 @@ export interface LoginResponse {
         token: string;
         user?: User;
     };
-    // Альтернативные варианты
     token?: string;
     data?: {
         token: string;
@@ -203,6 +229,15 @@ export interface CreateChatResponse {
     Data: Chat;
 }
 
+export interface CreateGroupResponse {
+    Code: number;
+    Message: string;
+    Data?: {
+        chat_id?: number;
+        chat?: Chat;
+    };
+}
+
 export interface DeleteMessageResponse {
     Code: number;
     Message: string;
@@ -211,7 +246,7 @@ export interface DeleteMessageResponse {
 
 // WebSocket сообщения
 export interface WebSocketMessage {
-    type: 'message' | 'typing' | 'read_receipt' | 'user_joined' | 'user_left';
+    type: 'message' | 'typing' | 'read_receipt' | 'user_joined' | 'user_left' | 'profile_update' | 'status_update';
     data: any;
 }
 
@@ -274,35 +309,14 @@ export interface SearchState {
     isOpen: boolean;
 }
 
-
-// Добавляем в существующие типы
-
-export interface CreateGroupRequest {
-    name: string;
-    is_group: boolean;
-    users?: number[];
+// Дополнительные типы для онлайн-статусов
+export interface OnlineStatusUpdate {
+    user_id: number;
+    online: boolean;
+    last_seen?: string;
 }
 
-export interface CreateGroupResponse {
-    Code: number;
-    Message: string;
-    Data?: {
-        chat_id?: number;
-        chat?: Chat;
-    };
+export interface ProfileUpdateEvent {
+    type: 'profile_update';
+    content: User | GroupProfile;
 }
-
-export interface AddUsersRequest {
-    chat_id: number;
-    users: number[];
-}
-
-export interface AddUsersResponse {
-    Code: number;
-    Message: string;
-    Data: {
-        added: number[];
-        alreadyExists: number[];
-    };
-}
-

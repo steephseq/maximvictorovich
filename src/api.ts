@@ -5,7 +5,8 @@ import type {
     GroupProfile, 
     LoginRequest, 
     RegisterRequest,
-    Message
+    Message,
+    AvailableMessageActions
 } from './types.js';
 
 export class ProfileAPI {
@@ -122,46 +123,53 @@ export class ProfileAPI {
     }
 
     async getProfile(): Promise<User> {
-        const response = await fetch(`${this.baseURL}/myProfileHP`, {
-            headers: this.getAuthHeaders()
+        return this.fetchWithAuth<User>('/myProfileHP', {
+            method: 'GET'
         });
-
-        const result = await response.json();
-        
-        if (response.status === 401) {
-            throw new Error('Authentication failed');
-        }
-        
-        if (!response.ok) {
-            throw new Error(result.Message || result.message || `HTTP error! status: ${response.status}`);
-        }
-
-        return result.Data || result.data || result;
     }
 
     async fetchProfile(chatData: Chat): Promise<GroupProfile | User> {
-        return this.fetchWithAuth<GroupProfile | User>('/profile', {
+        console.log("📡 Запрос профиля для:", chatData);
+        const result = await this.fetchWithAuth<GroupProfile | User>('/profile', {
             method: 'POST',
-            body: JSON.stringify(chatData)
+            body: JSON.stringify({
+                id: chatData.id,
+                is_group: chatData.is_group
+            })
+        });
+        console.log("📥 Ответ профиля:", result);
+        return result;
+    }
+    
+    async editMessage(messageId: number, newContent: string, userId: number, chatId: number): Promise<void> {
+        return this.fetchWithAuth<void>('/editMessage', {
+            method: 'PATCH',
+            body: JSON.stringify({
+                id: messageId,           // ← меняем message_id на id
+                content: newContent,
+                user_id: userId,         // ← user_id
+                chat_id: chatId,         // ← chat_id  
+                is_ready: true           // ← is_ready
+            })
+        });
+    }
+    
+    
+    async deleteMessage(messageId: number, chatId: number): Promise<void> {
+        return this.fetchWithAuth<void>('/deleteMessage', {
+            method: 'POST',
+            body: JSON.stringify({
+                message_id: messageId,
+                chat_id: chatId,
+                action: "can_delete_messages" // ← ИЗМЕНИТЕ "delete" НА "can_delete_messages"
+            })
         });
     }
 
     async getChats(offset: number = 0): Promise<Chat[]> {
-        const response = await fetch(`${this.baseURL}/chats?offset=${offset}`, {
-            headers: this.getAuthHeaders()
+        return this.fetchWithAuth<Chat[]>(`/chats?offset=${offset}`, {
+            method: 'GET'
         });
-
-        const result = await response.json();
-        
-        if (response.status === 401) {
-            throw new Error('Authentication failed');
-        }
-        
-        if (!response.ok) {
-            throw new Error(result.Message || result.message || `HTTP error! status: ${response.status}`);
-        }
-
-        return result.Data || result.data || result || [];
     }
 
     async getMessages(chatId: number): Promise<Message[]> {
@@ -170,21 +178,9 @@ export class ProfileAPI {
             throw new Error(`Invalid chat ID: ${chatId}`);
         }
 
-        const response = await fetch(`${this.baseURL}/messages?id=${numericChatId}`, {
-            headers: this.getAuthHeaders()
+        return this.fetchWithAuth<Message[]>(`/messages?id=${numericChatId}`, {
+            method: 'GET'
         });
-
-        const result = await response.json();
-        
-        if (response.status === 401) {
-            throw new Error('Authentication failed');
-        }
-        
-        if (!response.ok) {
-            throw new Error(result.Message || result.message || `HTTP error! status: ${response.status}`);
-        }
-
-        return result.Data || result.data || result || [];
     }
 
     async setBio(ownerId: number, isGroup: boolean, bio: string): Promise<void> {
@@ -192,8 +188,7 @@ export class ProfileAPI {
             id: ownerId,
             is_group: Boolean(isGroup),
             parameter: bio,
-            column: 'bio',
-            action: 'can_change_bio'
+            column: 'bio'
         });
     }
 
@@ -202,8 +197,7 @@ export class ProfileAPI {
             id: ownerId,
             is_group: Boolean(isGroup),
             parameter: name,
-            column: 'name',
-            action: 'can_change_name'
+            column: 'name'
         });
     }
 
@@ -212,8 +206,7 @@ export class ProfileAPI {
             id: ownerId,
             is_group: false,
             parameter: username,
-            column: 'username',
-            action: 'can_change_name'
+            column: 'username'
         });
     }
 
@@ -235,7 +228,7 @@ export class ProfileAPI {
         }
 
         await this.fetchWithAuth<any>(endpoint, {
-            method: 'PATCH',
+            method: 'POST',
             body: JSON.stringify(parameter)
         });
     }   
@@ -248,9 +241,15 @@ export class ProfileAPI {
             });
 
             if (Array.isArray(result)) {
-                return result;
+                return result.map(user => ({
+                    ...user,
+                    is_online: user.is_online !== undefined ? user.is_online : false
+                }));
             } else if (result) {
-                return [result];
+                return [{
+                    ...result,
+                    is_online: result.is_online !== undefined ? result.is_online : false
+                }];
             }
             return [];
         } catch (error) {
@@ -295,15 +294,44 @@ export class ProfileAPI {
         });
     }
 
-    async removeUserFromChat(chatId: number, userIds: number[]): Promise<number[]> {
-        return this.fetchWithAuth<number[]>('/removeUserFromChat', {
-            method: 'POST',
-            body: JSON.stringify({
-                chat_id: chatId,
-                users: userIds
-            })
+    async removeUserFromChat(chatId: number, userId: number): Promise<void> {
+        console.log('📡 API: removeUserFromChat вызван с:', { 
+            chatId, 
+            userId,
+            chatIdType: typeof chatId,
+            userIdType: typeof userId
+        });
+        
+        // Согласно вашему бекенду - используется DELETE с query параметрами
+        const url = `/removeUserFromChat?chat_id=${chatId}&user_id=${userId}`;
+        console.log('🔗 URL запроса:', url);
+        
+        return this.fetchWithAuth<void>(url, {
+            method: 'DELETE'
         });
     }
+
+    async getAvailableUserActions(chatId: number): Promise<{
+        CanDeleteUser: boolean;
+        CanBanUser: boolean;
+        CanManageRoles: boolean;
+    }> {
+        console.log('📡 API: getAvailableUserActions вызван с chatId:', chatId);
+        
+        // Согласно вашему бекенду - GET запрос с query параметром
+        return this.fetchWithAuth<any>(`/howCanIDoUser?chat_id=${chatId}`, {
+            method: 'GET'
+        });
+    }
+
+    async getAvailableMessageActions(chatId: number, messageId: number): Promise<AvailableMessageActions> {
+        console.log('📡 API: getAvailableMessageActions вызван с:', { chatId, messageId });
+        
+        return this.fetchWithAuth<any>(`/howCanIDoMessage?id=${chatId}&mid=${messageId}`, {
+            method: 'GET'
+        });
+    }
+
 
     async createChat(name: string, isGroup: boolean = false): Promise<Chat> {
         return this.fetchWithAuth<Chat>('/createChat', {
@@ -341,7 +369,6 @@ export class ProfileAPI {
         
         console.log(`📤 Исходный файл: name="${file.name}", type="${file.type}", size=${file.size}`);
         
-        // Просто отправляем файл как есть - браузер сам добавит правильное имя
         formData.append('file', file);
         
         if (messageId) {
@@ -420,7 +447,10 @@ export class ProfileAPI {
             const user = users.find(u => u.id === userId);
             
             if (user) {
-                return user;
+                return {
+                    ...user,
+                    is_online: user.is_online !== undefined ? user.is_online : false
+                };
             }
             
             return {
@@ -428,7 +458,8 @@ export class ProfileAPI {
                 name: 'Пользователь',
                 username: 'user',
                 email: '',
-                avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face'
+                avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face',
+                is_online: false
             };
             
         } catch (error) {
@@ -438,7 +469,8 @@ export class ProfileAPI {
                 name: 'Пользователь',
                 username: 'user',
                 email: '',
-                avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face'
+                avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face',
+                is_online: false
             };
         }
     }
@@ -526,15 +558,6 @@ export class ProfileAPI {
         return normalizedChat;
     }
 
-    async deleteMessage(messageId: number): Promise<void> {
-        return this.fetchWithAuth<void>('/deleteMessage', {
-            method: 'POST',
-            body: JSON.stringify({
-                message_id: messageId
-            })
-        });
-    }
-
     async setAvatar(formData: FormData): Promise<void> {
         const response = await fetch(`${this.baseURL}/setAvatar`, {
             method: 'POST',
@@ -549,56 +572,18 @@ export class ProfileAPI {
         }
     }
 
-    async getGroupProfile(chatId: number): Promise<any> {
-        return this.getChatProfile(chatId, true);
-    }
-
-    async getUserProfileByChatId(chatId: number): Promise<any> {
-        return this.getChatProfile(chatId, false);
-    }
-
-    async getChatProfile(chatId: number, isGroup: boolean): Promise<any> {
-        const response = await fetch('/profile', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify({
-                id: chatId,
-                is_group: isGroup
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        
-        if (data.code === 200 && data.data) {
-            return {
-                ...data.data,
-                is_group: isGroup
-            };
-        } else {
-            throw new Error(data.message || 'Failed to get profile');
-        }
-    }
-
     async updateProfileField(userId: number, field: string, value: string): Promise<void> {
         const endpoint = field === 'bio' ? '/setBio' : 
                         field === 'name' ? '/setName' : 
                         '/setUserName';
         
         await this.fetchWithAuth<any>(endpoint, {
-            method: 'PATCH',
+            method: 'POST',
             body: JSON.stringify({
                 id: userId,
                 is_group: false,
                 parameter: value,
-                column: field,
-                action: 'edit'
+                column: field
             })
         });
     }

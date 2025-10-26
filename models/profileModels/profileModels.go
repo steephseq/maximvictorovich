@@ -16,6 +16,11 @@ type Profile struct {
 	IsGroup     bool               `json:"is_group" db:"is_group"`
 }
 
+type ProfileRequest struct {
+	ID      int  `json:"id"`
+	IsGroup bool `json:"is_group"`
+}
+
 type NewProfileParameter struct {
 	OwnerID   int    `json:"id" db:"id"`
 	IsGroup   bool   `json:"is_group"`

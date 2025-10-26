@@ -3,260 +3,352 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Чаты - Mess</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/main.css">
+    <title>Messenger</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="css/home.css">
-    <style>
-.header-action-btn[title="Поиск"] {
-    position: relative;
-}
-
-/* Индикатор хоткея */
-.header-action-btn[title="Поиск"]::after {
-    content: 'Ctrl+K';
-    position: absolute;
-    bottom: -15px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 0.6rem;
-    color: #9ca3af;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.header-action-btn[title="Поиск"]:hover::after {
-    opacity: 1;
-}
-
-.member-item {
-    display: flex;
-    align-items: center;
-    margin-bottom: 12px;
-}
-
-.member-info {
-    display: flex;
-    flex-direction: column;
-}
-
-.status-online {
-    color: #22c55e; /* green-500 */
-    font-size: 0.8rem;
-}
-
-.status-offline {
-    color: #9ca3af; /* gray-400 */
-    font-size: 0.8rem;
-}
-</style>
 </head>
 <body>
-    <div class="home-container">
-        <!-- Боковая панель -->
-        <div class="sidebar">
-            <!-- Заголовок -->
-            <div class="sidebar-header">
-                <div class="user-info">
-                    <img id="userAvatar" src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face" 
-                        alt="Аватар" class="user-avatar">
-                    <div class="user-details">
-                        <span id="userName" class="user-name">Пользователь</span>
-                        <span class="user-status">online</span>
-                    </div>
-                </div>
-                <button class="settings-btn" title="Настройки">
-                    <i class="fas fa-cog"></i>
-                </button>
-            </div>
-
-            <!-- Поиск -->
-            <div class="search-container">
-                <div class="search-box">
-                    <i class="fas fa-search search-icon"></i>
-                    <input type="text" id="searchChats" placeholder="Поиск чатов..." class="search-input">
-                </div>
-                <button class="new-chat-btn" title="Новый чат">
-                    <i class="fas fa-plus"></i>
-                </button>
-            </div>
-
-            <!-- Список чатов -->
-            <div class="chats-list" id="chatsList">
-                <!-- Чаты будут загружаться динамически -->
-            </div>
-        </div>
-
-        <!-- Основное содержание -->
-        <div class="main-content">
-            <!-- Приветственный экран -->
-            <div class="welcome-section" id="welcomeSection">
-                <div class="welcome-icon">
-                    <i class="fas fa-comments"></i>
-                </div>
-                <h1 class="welcome-title">Добро пожаловать в Mess</h1>
-                <p class="welcome-subtitle">Выберите чат чтобы начать общение</p>
-                <button class="start-chat-btn">
-                    <i class="fas fa-plus"></i> Начать новый чат
-                </button>
-            </div>
-
-            <!-- Окно чата (скрыто по умолчанию) -->
-            <div class="chat-section hidden" id="chatSection">
-                <!-- Заголовок чата -->
-                <div class="chat-header">
-                    <div class="chat-header-info">
-                        <button class="back-btn" id="backToChats">
-                            <i class="fas fa-arrow-left"></i>
-                        </button>
-                        <img id="currentChatAvatar" src="https://images.unsplash.com/photo-1494790108755-2616b612b786?w=50&h=50&fit=crop&crop=face" 
-                            alt="Аватар чата" class="chat-header-avatar">
-                        <div class="chat-header-details">
-                            <span id="currentChatName" class="chat-header-name">Имя чата</span>
-                            <span id="currentChatStatus" class="chat-header-status">online</span>
+    <div id="app">
+        <div class="home-container">
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <div class="user-info">
+                        <img id="userAvatar" src="https://via.placeholder.com/80" alt="Avatar" class="user-avatar">
+                        <div class="user-details">
+                            <div id="userName" class="user-name">Загрузка...</div>
+                            <div class="user-username">@username</div>
                         </div>
                     </div>
-                    <div class="chat-header-actions">
-                        <button class="header-action-btn" title="Поиск">
-                            <i class="fas fa-search"></i>
-                        </button>
-                        <button class="header-action-btn" title="Информация">
-                            <i class="fas fa-info-circle"></i>
-                        </button>
-                        <button class="header-action-btn" title="Меню">
-                            <i class="fas fa-ellipsis-v"></i>
-                        </button>
+                    <button class="settings-btn">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                </div>
+                
+                <div class="search-container">
+                    <div class="search-box">
+                        <i class="fas fa-search search-icon"></i>
+                        <input type="text" id="searchChats" class="search-input" placeholder="Поиск чатов...">
+                    </div>
+                    <button class="new-chat-btn">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                
+                <div class="chats-list" id="chatsList">
+                    <div class="empty-chats">
+                        <i class="fas fa-comments"></i>
+                        <p>Нет чатов</p>
+                        <span>Создайте новый чат чтобы начать общение!</span>
                     </div>
                 </div>
-
-                <!-- Область сообщений -->
-                <div class="messages-container" id="messagesContainer">
-                    <div class="messages-list" id="messagesList">
-                        <!-- Сообщения будут добавляться динамически -->
+            </div>
+            
+            <!-- Main Content -->
+            <div class="main-content">
+                <!-- Welcome Section -->
+                <div id="welcomeSection" class="welcome-section">
+                    <div class="welcome-icon">
+                        <i class="fas fa-comments"></i>
                     </div>
+                    <h1 class="welcome-title">Добро пожаловать в Messenger</h1>
+                    <p class="welcome-subtitle">Выберите чат чтобы начать общение</p>
+                    <button class="start-chat-btn">Начать общение</button>
                 </div>
-
-                <!-- Панель ввода сообщения -->
-                <div class="message-input-container">
-                    <div class="message-input-wrapper">
-                        <button class="attachment-btn" title="Прикрепить файл">
-                            <i class="fas fa-paperclip"></i>
-                        </button>
-                        <div class="message-input-box">
-                            <textarea id="messageInput" placeholder="Введите сообщение..." 
-                                    rows="1" class="message-input"></textarea>
-                            <button class="emoji-btn" title="Эмодзи">
-                                <i class="fas fa-smile"></i>
+                
+                <!-- Chat Section -->
+                <div id="chatSection" class="chat-section hidden">
+                    <div class="chat-header">
+                        <div class="chat-header-info">
+                            <img id="currentChatAvatar" src="https://via.placeholder.com/45" alt="Chat Avatar" class="chat-header-avatar">
+                            <div class="chat-header-details">
+                                <div id="currentChatName" class="chat-header-name">Название чата</div>
+                                <div id="currentChatStatus" class="chat-header-status">online</div>
+                            </div>
+                        </div>
+                        <div class="chat-header-actions">
+                            <button class="header-action-btn">
+                                <i class="fas fa-phone"></i>
+                            </button>
+                            <button class="header-action-btn">
+                                <i class="fas fa-video"></i>
+                            </button>
+                            <button id="backToChats" class="back-btn">
+                                <i class="fas fa-arrow-left"></i>
                             </button>
                         </div>
-                        <button class="send-btn" id="sendMessageBtn" title="Отправить">
-                            <i class="fas fa-paper-plane"></i>
-                        </button>
+                    </div>
+                    
+                    <div class="messages-container" id="messagesContainer">
+                        <div class="messages-list" id="messagesList">
+                            <div class="empty-chat">
+                                <i class="fas fa-comments"></i>
+                                <p>Пока нет сообщений</p>
+                                <span>Начните общение первым!</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="message-input-container">
+                        <div class="message-input-wrapper">
+                            <div class="message-input-box">
+                                <button class="attachment-btn">
+                                    <i class="fas fa-paperclip"></i>
+                                </button>
+                                <textarea id="messageInput" class="message-input" placeholder="Введите сообщение..."></textarea>
+                                <button class="emoji-btn">
+                                    <i class="fas fa-smile"></i>
+                                </button>
+                            </div>
+                            <button id="sendMessageBtn" class="send-btn">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Модальное окно профиля -->
+<!-- Group Profile Modal -->
+<div id="groupProfileModal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content group-profile-modal">
+        <div class="modal-header">
+            <h3 id="groupProfileModalTitle" class="modal-title">Профиль группы</h3>
+            <button class="modal-close" id="closeGroupProfileModal">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="modal-body">
+            <div class="profile-avatar-section">
+                <div class="avatar-container">
+                    <img id="groupProfileModalAvatar" src="https://via.placeholder.com/120" alt="Group Avatar" class="profile-avatar">
+                </div>
+            </div>
+
+            <div class="profile-info-section">
+                <div class="info-item">
+                    <label>Название группы</label>
+                    <input type="text" id="groupProfileName" class="profile-input" placeholder="Название группы" readonly>
+                </div>
+                
+                <div class="info-item">
+                    <label>Описание</label>
+                    <textarea id="groupProfileBio" class="profile-textarea" placeholder="Описание группы" readonly></textarea>
+                </div>
+            </div>
+
+            <!-- ПЕРЕНЕСИТЕ ЗАГОЛОВОК СЮДА -->
+            <div class="members-section">
+                <h4>Участники (<span id="groupMemberCount">0</span>)</h4>
+                <div class="members-list" id="groupMembersList">
+                    <div class="text-gray-500 text-center p-4">Нет участников</div>
+                </div>
+            </div>
+
+            <div class="profile-actions">
+                <button id="editGroupProfileBtn" class="btn-primary" style="display: none;">
+                    <i class="fas fa-edit"></i> Редактировать профиль
+                </button>
+                <button id="addGroupMemberBtn" class="btn-secondary" style="display: none;">
+                    <i class="fas fa-user-plus"></i> Добавить участника
+                </button>
+                <button id="leaveGroupBtn" class="btn-danger">
+                    <i class="fas fa-sign-out-alt"></i> Покинуть группу
+                </button>
+                <button id="cancelGroupProfileBtn" class="btn-secondary">
+                    <i class="fas fa-times"></i> Закрыть
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+    <!-- User Profile Modal -->
     <div id="profileModal" class="modal hidden">
         <div class="modal-overlay"></div>
-        <div class="modal-content profile-modal">
+        <div class="modal-content">
             <div class="modal-header">
-                <h2 class="modal-title">Мой профиль</h2>
-                <div>
-                    <button class="modal-action-btn" id="editProfileBtn"><i class="fas fa-cog"></i></button>
-                    <button class="modal-close" id="closeProfileModal">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
+                <h3 id="profileModalTitle" class="modal-title">Мой профиль</h3>
+                <button class="modal-close" id="closeProfileModal">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
+            
             <div class="modal-body">
                 <div class="profile-avatar-section">
-                    <div class="profile-avatar-container">
-                        <img id="profileModalAvatar" src="" alt="Аватар" class="profile-modal-avatar">
-                        <button class="change-avatar-btn" id="changeAvatarBtn">
-                            <i class="fas fa-camera"></i>
+                    <div class="avatar-container">
+                        <img id="profileModalAvatar" src="https://via.placeholder.com/120" alt="User Avatar" class="profile-avatar">
+                    </div>
+                </div>
+
+                <div id="profileView">
+                    <div class="profile-info-section">
+                        <div class="info-item">
+                            <label>Имя</label>
+                            <div id="profileDisplayName" class="profile-input" style="background: rgba(45, 27, 105, 0.6); color: #f8fafc; padding: 0.75rem 1rem; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.2);">Загрузка...</div>
+                        </div>
+                        
+                        <div class="info-item">
+                            <label>Юзернейм</label>
+                            <div id="profileDisplayUsername" class="profile-input" style="background: rgba(45, 27, 105, 0.6); color: #f8fafc; padding: 0.75rem 1rem; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.2);">@user</div>
+                        </div>
+                        
+                        <div class="info-item">
+                            <label>О себе</label>
+                            <div id="profileDisplayBio" class="profile-textarea" style="background: rgba(45, 27, 105, 0.6); color: #f8fafc; padding: 0.75rem 1rem; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.2); min-height: 60px;">Нет описания</div>
+                        </div>
+                    </div>
+
+                    <div class="profile-actions">
+                        <button id="editProfileBtn" class="btn-primary">
+                            <i class="fas fa-edit"></i> Редактировать профиль
+                        </button>
+                        <button id="cancelProfileBtn" class="btn-secondary">
+                            <i class="fas fa-times"></i> Закрыть
                         </button>
                     </div>
                 </div>
-                
-                <div class="profile-form">
-                    <div class="form-group">
-                        <label for="profileName">Имя</label>
-                        <input type="text" id="profileName" class="form-input" placeholder="Ваше имя">
+
+                <div id="profileEditForm" class="hidden">
+                    <div class="profile-info-section">
+                        <div class="info-item">
+                            <label>Имя</label>
+                            <input type="text" id="profileName" class="profile-input" placeholder="Ваше имя">
+                        </div>
+                        
+                        <div class="info-item">
+                            <label>Юзернейм</label>
+                            <input type="text" id="profileUsername" class="profile-input" placeholder="@username">
+                        </div>
+                        
+                        <div class="info-item">
+                            <label>О себе</label>
+                            <textarea id="profileBio" class="profile-textarea" placeholder="Расскажите о себе..."></textarea>
+                        </div>
                     </div>
-                    
-                    <div class="form-group">
-                        <label for="profileUsername">Username</label>
-                        <input type="text" id="profileUsername" class="form-input" placeholder="@username">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="profileBio">О себе</label>
-                        <textarea id="profileBio" class="form-textarea" placeholder="Расскажите о себе..." rows="3"></textarea>
+
+                    <div class="profile-actions">
+                        <button id="saveProfileBtn" class="btn-primary">
+                            <i class="fas fa-save"></i> Сохранить
+                        </button>
+                        <button id="cancelEditProfileBtn" class="btn-secondary">
+                            <i class="fas fa-times"></i> Отмена
+                        </button>
                     </div>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-secondary" id="cancelProfileBtn">Отмена</button>
-                <button class="btn-primary" id="saveProfileBtn">Сохранить</button>
             </div>
         </div>
     </div>
 
-    <!-- Модальное окно профиля группы -->
-    <div id="groupProfileModal" class="modal hidden">
+    <!-- User Actions Modal -->
+    <div id="userActionsModal" class="modal hidden">
         <div class="modal-overlay"></div>
-        <div class="modal-content group-profile-modal">
+        <div class="modal-content user-actions-modal">
             <div class="modal-header">
-                <h2 class="modal-title" id="groupProfileModalTitle">Профиль группы</h2>
-                <div>
-                    <button class="modal-action-btn" id="editGroupProfileBtn"><i class="fas fa-cog"></i></button>
-                    <button class="modal-close" id="closeGroupProfileModal">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
+                <h3 class="modal-title">Действия с пользователем</h3>
+                <button class="modal-close" id="closeUserActionsModal">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
             <div class="modal-body">
-                <div class="profile-avatar-section">
-                    <div class="profile-avatar-container">
-                        <img id="groupProfileModalAvatar" src="" alt="Аватар группы" class="profile-modal-avatar">
-                        <button class="change-avatar-btn" id="changeGroupAvatarBtn">
-                            <i class="fas fa-camera"></i>
-                        </button>
-                    </div>
+                <div class="user-actions-list" id="userActionsList">
+                    <div class="text-gray-500 text-center p-4">Нет доступных действий</div>
                 </div>
-                
-                <div class="profile-form">
-                    <div class="form-group">
-                        <label for="groupProfileName">Название группы</label>
-                        <input type="text" id="groupProfileName" class="form-input">
-                    </div>
-                    <div class="form-group">
-                        <label for="groupProfileBio">Описание</label>
-                        <textarea id="groupProfileBio" class="form-textarea" rows="2"></textarea>
-                    </div>
-                </div>
-
-                <div class="members-section">
-                    <h3>Участники (<span id="groupMemberCount">0</span>)</h3>
-                    <div class="members-list" id="groupMembersList">
-                        <!-- Участники будут добавлены здесь -->
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-secondary" id="cancelGroupProfileBtn" style="display: none;">Отмена</button>
-                <button class="btn-primary" id="saveGroupProfileBtn" style="display: none;">Сохранить</button>
-                <button class="btn-danger" id="leaveGroupBtn">Покинуть группу</button>
-                <button class="btn-primary" id="addGroupMemberBtn">Добавить участника</button>
             </div>
         </div>
     </div>
 
+    <!-- Group Creation Modal -->
+    <div id="groupModal" class="group-modal-overlay hidden">
+        <div class="group-modal">
+            <div class="group-modal-header">
+                <div class="group-header-content">
+                    <i class="fas fa-users group-header-icon"></i>
+                    <h3>Создать группу</h3>
+                </div>
+                <button class="group-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="group-form">
+                <div class="form-group">
+                    <label for="groupName">Название группы</label>
+                    <input type="text" id="groupName" 
+                           placeholder="Введите название группы..." 
+                           class="group-input">
+                </div>
 
+                <div class="form-group">
+                    <label for="userSearch">Добавить участников</label>
+                    <div class="user-search-box">
+                        <i class="fas fa-search user-search-icon"></i>
+                        <input type="text" id="userSearch" 
+                               placeholder="Поиск пользователей..." 
+                               class="user-search-input">
+                    </div>
+                </div>
+
+                <div class="selected-users" id="selectedUsers">
+                    <div class="selected-users-empty">
+                        <i class="fas fa-user-plus"></i>
+                        <span>Пока нет выбранных пользователей</span>
+                    </div>
+                </div>
+
+                <div class="users-search-results hidden" id="usersSearchResults"></div>
+            </div>
+
+            <div class="group-modal-footer">
+                <button class="btn-secondary group-cancel-btn">Отмена</button>
+                <button class="btn-primary group-create-btn" disabled>
+                    <i class="fas fa-plus"></i> Создать группу
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Player Modal -->
+    <div class="video-modal">
+        <div class="video-modal-content">
+            <button class="close-btn">
+                <i class="fas fa-times"></i>
+            </button>
+            <video class="video-player" preload="metadata">
+                Ваш браузер не поддерживает видео.
+            </video>
+            <div class="video-controls">
+                <button class="control-btn play-btn" title="Воспроизвести/Пауза">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button class="control-btn mute-btn" title="Отключить звук">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+                <div class="progress-container">
+                    <div class="progress-bar"></div>
+                </div>
+                <div class="time-display">0:00 / 0:00</div>
+                <button class="control-btn fullscreen" title="Полный экран">
+                    <i class="fas fa-expand"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Connection Status -->
+    <div id="connectionStatus" class="connection-status connection-connected hidden">
+        <i class="fas fa-wifi"></i> Подключено
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="dist/auth.js"></script>
+    <script type="module" src="dist/types.js"></script>
+    <script type="module" src="dist/api.js"></script>
+    <script type="module" src="dist/websocket.js"></script>
+    <script type="module" src="dist/search.js"></script>
+    <script type="module" src="dist/groupManager.js"></script>
     <script type="module" src="dist/home.js"></script>
 </body>
 </html>

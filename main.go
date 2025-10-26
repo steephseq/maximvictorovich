@@ -1,23 +1,29 @@
 package main
 
 import (
-	"context"
 	"log"
 
 	"mess/authentification"
 	"mess/chats"
 	"mess/cloud"
+	"mess/database"
 	"mess/files"
 	"mess/onlineStatus"
-	"mess/redis"
-
 	"mess/profile"
-
-	"mess/database"
+	"mess/redis"
 	"mess/search"
 	"mess/services"
 	"net/http"
 )
+
+// Временные handlers для отладки
+func debugProtectedHandler(h http.HandlerFunc) http.Handler {
+	return authentification.JWTMiddleware(h)
+}
+
+func debugPublicHandler(h http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(h)
+}
 
 func main() {
 	if err := database.InitDB(); err != nil {
@@ -27,36 +33,44 @@ func main() {
 		log.Printf("failed to init redis,error:%v", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go onlineStatus.OnlineWorker(ctx)
-	go onlineStatus.RedisExpireWorker(ctx)
-	mux := http.NewServeMux()
-	mux.HandleFunc("/register", authentification.RegisterHandler)
-	mux.HandleFunc("/login", authentification.LoginHandler)
-	mux.Handle("/onlineUsers", authentification.JWTMiddleware(http.HandlerFunc(onlineStatus.OnlineStatusHandler)))
-	mux.Handle("/chats", authentification.JWTMiddleware(http.HandlerFunc(chats.ShowChatsHandler)))
-	mux.Handle("/messages", authentification.JWTMiddleware(http.HandlerFunc(chats.ShowMessagesHandler)))
-	mux.Handle("/searchUser", authentification.JWTMiddleware(http.HandlerFunc(search.SearchUserHandler)))
-	mux.Handle("/createChat", authentification.JWTMiddleware(http.HandlerFunc(chats.CreateChatHandler)))
-	mux.Handle("/chatExists", authentification.JWTMiddleware(http.HandlerFunc(chats.ExistsChatHandler)))
-	mux.Handle("/create121Chat", authentification.JWTMiddleware(http.HandlerFunc(chats.CreateChat121Handler)))
-	mux.Handle("/profile", authentification.JWTMiddleware(http.HandlerFunc(profile.OpenProfile)))
-	mux.Handle("/addUsers", authentification.JWTMiddleware(http.HandlerFunc(chats.AddUserIntoChatHandler)))
-	mux.Handle("/removeUserFromChat", authentification.JWTMiddleware(http.HandlerFunc(chats.RemoveUserFromChatHandler)))
-	mux.Handle("/newAdmin", authentification.JWTMiddleware(http.HandlerFunc(chats.MadeAdminHandler)))
-	mux.Handle("/howCanIDoMessage", authentification.JWTMiddleware(http.HandlerFunc(chats.HowCanIDoWithMessageHandler)))
-	mux.Handle("/deleteMessage", authentification.JWTMiddleware(http.HandlerFunc(chats.DeleteMessageHandler)))
-	mux.Handle("/setAvatar", authentification.JWTMiddleware(http.HandlerFunc(cloud.SetAvatarHandler)))
-	mux.Handle("/myProfileHP", authentification.JWTMiddleware(http.HandlerFunc(profile.MyProfileHandler)))
-	mux.Handle("/setBio", authentification.JWTMiddleware(http.HandlerFunc(profile.SetBioHandler)))
-	mux.Handle("/uploadFile", authentification.JWTMiddleware(http.HandlerFunc(files.UploadFileHandler)))
-	mux.Handle("/setName", authentification.JWTMiddleware(http.HandlerFunc(profile.SetNameHandler)))
-	mux.Handle("/setUserName", authentification.JWTMiddleware(http.HandlerFunc(profile.SetUserNameHandler)))
-	mux.Handle("/createEmptyMessage", authentification.JWTMiddleware(http.HandlerFunc(chats.CreateEmptyMessage)))
-	mux.Handle("/ws/onlineStatus", authentification.JWTMiddleware(http.HandlerFunc(onlineStatus.OnlineStatusHandler)))
-	mux.HandleFunc("/ws", chats.SendMessageHandler)
+	//ctx, cancel := context.WithCancel(context.Background())
+	//defer cancel()
+	//go onlineStatus.OnlineWorker(ctx)
+	//go onlineStatus.RedisExpireWorker(ctx)
 
+	mux := http.NewServeMux()
+
+	// Public routes (БЕЗ RateLimit для отладки)
+	mux.Handle("/register", debugPublicHandler(authentification.RegisterHandler))
+	mux.Handle("/login", debugPublicHandler(authentification.LoginHandler))
+
+	// Protected routes (ТОЛЬКО JWT, без RateLimit)
+	mux.Handle("/onlineUsers", debugProtectedHandler(onlineStatus.OnlineStatusHandler))
+	mux.Handle("/chats", debugProtectedHandler(chats.ShowChatsHandler))
+	mux.Handle("/messages", debugProtectedHandler(chats.ShowMessagesHandler))
+	mux.Handle("/searchUser", debugProtectedHandler(search.SearchUserHandler))
+	mux.Handle("/createChat", debugProtectedHandler(chats.CreateChatHandler))
+	mux.Handle("/chatExists", debugProtectedHandler(chats.ExistsChatHandler))
+	mux.Handle("/editMessage", debugProtectedHandler(chats.EditMessageHandler))
+	mux.Handle("/create121Chat", debugProtectedHandler(chats.CreateChat121Handler))
+	mux.Handle("/profile", debugProtectedHandler(profile.OpenProfileHandler))
+	mux.Handle("/addUsers", debugProtectedHandler(chats.AddUserIntoChatHandler))
+	mux.Handle("/removeUserFromChat", debugProtectedHandler(chats.RemoveUserFromChatHandler))
+	mux.Handle("/newAdmin", debugProtectedHandler(chats.MadeAdminHandler))
+	mux.Handle("/howCanIDoMessage", debugProtectedHandler(chats.HowCanIDoWithMessageHandler))
+	mux.Handle("/deleteMessage", debugProtectedHandler(chats.DeleteMessageHandler))
+	mux.Handle("/setAvatar", debugProtectedHandler(cloud.SetAvatarHandler))
+	mux.Handle("/myProfileHP", debugProtectedHandler(profile.MyProfileHandler))
+	mux.Handle("/setBio", debugProtectedHandler(profile.SetBioHandler))
+	mux.Handle("/uploadFile", debugProtectedHandler(files.UploadFileHandler))
+	mux.Handle("/setName", debugProtectedHandler(profile.SetNameHandler))
+	mux.Handle("/setUserName", debugProtectedHandler(profile.SetUserNameHandler))
+	mux.Handle("/createEmptyMessage", debugProtectedHandler(chats.CreateEmptyMessage))
+	mux.Handle("/ws/onlineStatus", debugProtectedHandler(onlineStatus.OnlineStatusHandler))
+	mux.Handle("/ws/profile", debugProtectedHandler(profile.ProfileWSHandler))
+	mux.Handle("/ws", debugProtectedHandler(chats.SendMessageHandler))
+	mux.Handle("/howCanIDoUser", debugProtectedHandler(chats.HowCanDoWithUserHandler))
+	// Static files
 	fs := http.FileServer(http.Dir("./frontend"))
 	mux.Handle("/", fs)
 

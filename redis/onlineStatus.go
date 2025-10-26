@@ -5,7 +5,7 @@ import (
 )
 
 func CalculateOnlineUsers(chatID int) (int, error) {
-	onlineCount, err := RedisClient.SCard(Ctx, fmt.Sprintf("chat_online_users:%d", chatID)).Result()
+	onlineCount, err := RedisClient.SCard(Ctx, fmt.Sprintf("chat:online:users:%d", chatID)).Result()
 	if err != nil {
 		return 0, err
 	}

@@ -21,7 +21,6 @@ var upgrader = websocket.Upgrader{
 }
 
 func OnlineStatusHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("online status handler")
 	userIDStr := r.Context().Value(JWTModels.UserIDKey)
 	userID, ok := userIDStr.(uint)
 	if !ok {
@@ -35,109 +34,99 @@ func OnlineStatusHandler(w http.ResponseWriter, r *http.Request) {
 		services.ResponseFunc(w, http.StatusInternalServerError, "failed to upgrade ws", nil)
 		return
 	}
-	log.Printf("ws connection is successfully")
 	defer conn.Close()
 
-	if err := AddUserOnline(userID); err != nil {
-		log.Printf("failed to add user to online set, error:%v", err)
-	}
-	if err := AddToOnlineChats(int(userID)); err != nil {
-		log.Printf("failed to add user to online chats, error:%v", err)
-	}
-	if err := SendMessageToChatsChannels("chat_event", int(userID), "user_online"); err != nil {
-		log.Printf("failed to send message to chats channels: %v", err)
-	}
+	UserOnlineStatus(int(userID), "add")
+	log.Printf("🟢 OnlineStatusHandler: user %d is online", userID)
+
+	SendMessageToChatsChannels("online:status", int(userID), "user_online")
 	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
 			log.Printf("failed to read message, error:%v", err)
-			DeleteUserFromOnline(int(userID))
-			DeleteUserFromOnlineChats(int(userID))
+			UserOnlineStatus(int(userID), "delete")
+			SendMessageToChatsChannels("online:status", int(userID), "user_offline")
 			if err := database.UpdateLastSeen(int(userID), time.Now().UTC()); err != nil {
 				log.Printf("failed to update last seen, error:%v", err)
 			}
-			log.Printf("user %d is offline", userID)
+			log.Printf("⚪️ OnlineStatusHandler: user %d is offline", userID)
 			break
 		}
 
 		if string(msg) == "ping" {
-			if err := UpdateOnlineStatus(int(userID)); err != nil {
-				log.Printf("failed to update online status, error:%v", err)
-			}
+			UpdateOnlineStatus(int(userID))
 			continue
 		}
 	}
 
 }
 
-func AddUserOnline(userID uint) error {
-	if err := redis.RedisSAdd("online_users", userID); err != nil {
-		return err
+func UserOnlineStatus(userID int, action string) {
+	switch action {
+	case "add":
+		if err := redis.RedisSAdd("online:users", userID); err != nil {
+			log.Printf("failed to add user to online set, error:%v", err)
+		}
+		fields := map[string]interface{}{
+			"user_id":   userID,
+			"last_seen": time.Now().UTC().Format(time.RFC3339),
+		}
+		key := fmt.Sprintf("user:%d:status", userID)
+		if err := redis.RedisHSet(key, fields); err != nil {
+			log.Printf("failed to set user last seen, error:%v", err)
+		}
+		if err := redis.RedisExpire(key, 10*time.Second); err != nil {
+			log.Printf("failed to set user last seen, error:%v", err)
+		}
+		OnlineUserChats(userID, "add")
+	case "delete":
+		if err := redis.RedisClient.SRem(redis.Ctx, "online:users", userID).Err(); err != nil {
+			log.Printf("failed to remove user from online set, error:%v", err)
+		}
+		key := fmt.Sprintf("user:%d:status", userID)
+		if err := redis.RedisClient.HSet(redis.Ctx, key, "online", false).Err(); err != nil {
+			log.Printf("failed to set user last seen, error:%v", err)
+		}
+		key = fmt.Sprintf("user:%d:active", userID)
+		if err := redis.RedisClient.Del(redis.Ctx, key).Err(); err != nil {
+			log.Printf("failed to delete user from online set, error:%v", err)
+		}
+		OnlineUserChats(userID, "delete")
 	}
+}
 
-	fields := map[string]interface{}{
-		"user_id":   userID,
-		"last_seen": time.Now().UTC().Format(time.RFC3339),
-	}
+func UpdateOnlineStatus(userID int) {
 	key := fmt.Sprintf("user:%d:status", userID)
-	if err := redis.RedisHSet(key, fields); err != nil {
-		return err
-	}
-
 	if err := redis.RedisExpire(key, 10*time.Minute); err != nil {
-		return err
+		log.Printf("failed to update online status, error:%v", err)
+	}
+	if err := redis.RedisHSet(key, map[string]interface{}{"last_seen": time.Now().UTC().Format(time.RFC3339)}); err != nil {
+		log.Printf("failed to update online status, error:%v", err)
 	}
 
 	key = fmt.Sprintf("user:%d:active", userID)
-	if err := redis.RedisHSet(key, map[string]interface{}{"active": true}); err != nil {
-		return err
-	}
 	if err := redis.RedisExpire(key, 10*time.Second); err != nil {
-		return err
+		log.Printf("failed to update online status, error:%v", err)
 	}
-
-	return nil
 }
 
-func AddToOnlineChats(userID int) error {
+func OnlineUserChats(userID int, action string) {
 	allChats, err := database.GetChatsByUserID(userID)
 	if err != nil {
-		return err
+		log.Printf("failed to get chats by user id, error:%v", err)
 	}
 	for _, chat := range allChats {
-		if err := redis.RedisSAdd(fmt.Sprintf("chat_online_users:%d", chat.ID), userID); err != nil {
-			return err
+		switch action {
+		case "delete":
+			if err := redis.RedisSRem(fmt.Sprintf("chat:online:users:%d", chat.ID), userID); err != nil {
+				log.Printf("failed to remove user from chat online users, error:%v", err)
+			}
+		case "add":
+			if err := redis.RedisSAdd(fmt.Sprintf("chat:online:users:%d", chat.ID), userID); err != nil {
+				log.Printf("failed to add user to chat online users, error:%v", err)
+			}
 		}
 	}
-	return nil
-}
-
-func DeleteUserFromOnlineChats(userID int) error {
-	allChats, err := database.GetChatsByUserID(userID)
-	if err != nil {
-		return err
-	}
-	for _, chat := range allChats {
-		if err := redis.RedisSRem(fmt.Sprintf("chat_online_users:%d", chat.ID), userID); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func DeleteUserFromOnline(userID int) error {
-	if err := redis.RedisClient.SRem(redis.Ctx, "online_users", userID).Err(); err != nil {
-		return err
-	}
-	key := fmt.Sprintf("user:%d:status", userID)
-	if err := redis.RedisClient.HSet(redis.Ctx, key, "online", false).Err(); err != nil {
-		return err
-	}
-	key = fmt.Sprintf("user:%d:active", userID)
-	if err := redis.RedisClient.Del(redis.Ctx, key).Err(); err != nil {
-		return err
-	}
-	return nil
 }
 
 func OnlineWorker(ctx context.Context) {
@@ -148,7 +137,7 @@ func OnlineWorker(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			userIDs, err := redis.RedisClient.SMembers(ctx, "online_users").Result()
+			userIDs, err := redis.RedisClient.SMembers(ctx, "online:users").Result()
 			if err != nil {
 				log.Printf("failed to get online users, error:%v", err)
 				continue
@@ -167,7 +156,7 @@ func OnlineWorker(ctx context.Context) {
 				key := fmt.Sprintf("user:%d:active", id)
 				exists, _ := redis.RedisClient.Exists(ctx, key).Result()
 				if exists == 0 {
-					if err := redis.RedisClient.SRem(ctx, "online_users", id).Err(); err != nil {
+					if err := redis.RedisClient.SRem(ctx, "online:users", id).Err(); err != nil {
 						log.Printf("failed to remove user from online set, error:%v", err)
 						continue
 					}
@@ -182,22 +171,6 @@ func OnlineWorker(ctx context.Context) {
 			}
 		}
 	}
-}
-
-func UpdateOnlineStatus(userID int) error {
-	key := fmt.Sprintf("user:%d:status", userID)
-	if err := redis.RedisExpire(key, 10*time.Minute); err != nil {
-		return err
-	}
-	if err := redis.RedisHSet(key, map[string]interface{}{"last_seen": time.Now().UTC().Format(time.RFC3339)}); err != nil {
-		return err
-	}
-
-	key = fmt.Sprintf("user:%d:active", userID)
-	if err := redis.RedisExpire(key, 10*time.Second); err != nil {
-		return err
-	}
-	return nil
 }
 
 func RedisExpireWorker(ctx context.Context) {

@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/lib/pq"
 )
 
 func GetChatsForHomePage(userID int, offset time.Time) ([]chatsModels.Chat, error) {
@@ -262,6 +261,7 @@ func GetMessages(chatID uint64) ([]chatsModels.Message, error) {
 		m.created_at,
 		m.is_ready,
 		m.type,
+		m.answer,
 		t.filename
 		FROM messages m
 	    JOIN users u ON m.user_id=u.id
@@ -270,7 +270,7 @@ func GetMessages(chatID uint64) ([]chatsModels.Message, error) {
 		ORDER BY m.created_at ASC`, chatID)
 
 	if err := godotenv.Load(); err != nil {
-		log.Fatal(err)
+		return messagesList, err
 	}
 	baseURL := os.Getenv("CLOUD_URL")
 	if baseURL == "" {
@@ -311,48 +311,32 @@ func SaveMessageToDB(msg chatsModels.Message) (int, error) {
 	return id, nil
 }
 
-func UpdateMessage(id int, filename string, isReady bool) error {
+func UpdateMessage(id int, content string, isReady bool) error {
 	query := `UPDATE messages
 			SET content=$1, is_ready=$2
 			WHERE id=$3`
-	_, err := DB.Exec(query, filename, isReady, id)
+	_, err := DB.Exec(query, content, isReady, id)
 	return err
 }
-func DeleteUserFromChat(chatID int, userIDs []int) error {
+func DeleteUserFromChat(chatID, userID int) error {
 	query := `DELETE FROM chats_users
-			WHERE chat_id = $1 AND user_id = ANY($2)`
+			WHERE chat_id = $1 AND user_id = $2`
 
-	_, err := DB.Exec(query, chatID, pq.Array(userIDs))
+	_, err := DB.Exec(query, chatID, userID)
 	return err
 }
 
-func IsUserINChat(chatID int, userIDs []int) ([]int, error) {
-	if len(userIDs) == 0 {
-		return []int{}, nil
-	}
-
-	query := `SELECT user_id 
+func IsUserINChat(chatID, userID int) (bool, error) {
+	query := `SELECT EXISTS(
+			SELECT 1
 			FROM chats_users
-			WHERE chat_id=$1 AND user_id=ANY($2)`
+			WHERE chat_id=$1 AND user_id=$2)`
 
-	rows, err := DB.Query(query, chatID, pq.Array(userIDs))
-	if err != nil {
-		return nil, err
+	var exists bool
+	if err := DB.Get(&exists, query, chatID, userID); err != nil {
+		return false, err
 	}
-	defer rows.Close()
-
-	var inChat []int
-	for rows.Next() {
-		var userID int
-		if err := rows.Scan(&userID); err != nil {
-			return nil, err
-		}
-		inChat = append(inChat, userID)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return inChat, nil
+	return exists, nil
 }
 
 func AddAdmin(Admin usersModels.AdminRoots) error {
@@ -367,6 +351,7 @@ func CanUserX(uid int, chatid int, action string) (bool, error) {
 	allowedActions := map[string]bool{
 		"can_delete_messages": true,
 		"can_ban_users":       true,
+		"can_delete_users":    true,
 		"can_manage_roles":    true,
 		"can_change_avatar":   true,
 		"can_change_bio":      true,
@@ -380,10 +365,10 @@ func CanUserX(uid int, chatid int, action string) (bool, error) {
 	}
 
 	query := fmt.Sprintf(`SELECT %s FROM chats_roles WHERE user_id=$1 AND chat_id=$2`, action)
-	var exists bool
+	exists := false
 	if err := DB.Get(&exists, query, uid, chatid); err != nil {
 		log.Println(err)
-		return false, err
+		return exists, err
 	}
 	return exists, nil
 }
@@ -417,8 +402,9 @@ func GetAvailableMessageActions(uid int, chatid int, messid int) (chatsModels.Av
 		actions.CanEditMessage = true
 		actions.CanDeleteMessage = true
 	} else {
-		query := `SELECT can_delete_messages 
-			FROM chats_roles WHERE user_id=$1 AND chat_id=$2`
+		query := `SELECT 
+		can_delete_messages,
+		FROM chats_roles WHERE user_id=$1 AND chat_id=$2`
 
 		var canDelete bool
 		if err := DB.Get(&canDelete, query, uid, chatid); err != nil {
@@ -426,6 +412,19 @@ func GetAvailableMessageActions(uid int, chatid int, messid int) (chatsModels.Av
 		}
 		actions.CanDeleteMessage = canDelete
 		actions.CanEditMessage = false
+	}
+	return actions, nil
+}
+
+func GetAvaliableUserActions(uid, chatid int) (chatsModels.AvaliableActionsUser, error) {
+	var actions chatsModels.AvaliableActionsUser
+
+	query := `SELECT can_delete_users
+			FROM chats_roles
+			WHERE user_id=$1 AND chat_id=$2`
+
+	if err := DB.Get(&actions.CanDeleteUser, query, uid, chatid); err != nil {
+		return actions, err
 	}
 	return actions, nil
 }
@@ -532,4 +531,10 @@ func validateDeleteData(tableName, columnName string) error {
 	default:
 		return fmt.Errorf("invalid delete action /DeleteChatHelper")
 	}
+}
+
+func ExistsMessageByID(mid uint64) (bool, error) {
+	var exists bool
+	err := DB.Get(&exists, "SELECT EXISTS (SELECT 1 FROM messages WHERE id=$1)", mid)
+	return exists, err
 }

@@ -15,8 +15,8 @@ func NewYandexStorage(bucket string) (context.Context, *s3.Client) {
 	if err := godotenv.Load(); err != nil {
 		log.Fatal(err)
 	}
-	accessKey := os.Getenv("YANDEX_CLOUD_ACCESS")
-	secretKey := os.Getenv("YANDEX_CLOUD_SECRET")
+	accessKey := os.Getenv("YANDEX_CLOUD_ACCESS_KEY")
+	secretKey := os.Getenv("YANDEX_CLOUD_SECRET_KEY")
 	if secretKey == "" || accessKey == "" {
 		log.Fatal("secretkey empty")
 	}

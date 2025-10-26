@@ -1,23 +1,19 @@
 package chats
 
 import (
-	"fmt"
 	"log"
 	"mess/database"
 	"mess/services"
 	"net/http"
-	"reflect"
 	"strconv"
 )
 
 func ShowMessagesHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("ShowMessagesHandler trigged")
 	if r.Method != http.MethodGet {
 		services.ResponseFunc(w, http.StatusMethodNotAllowed, "method not allowed", nil)
 		return
 	}
 	idStr := r.URL.Query().Get("id")
-	fmt.Println("id=", idStr, reflect.TypeOf(idStr))
 	chatID, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
 		log.Printf("failed to parse chatID to uint, error:%v", err)
@@ -44,6 +40,5 @@ func ShowMessagesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("successful get messages,messages:%d", len(messages))
 	services.ResponseFunc(w, http.StatusOK, "successfully get messages", messages)
 }

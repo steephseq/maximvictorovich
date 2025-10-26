@@ -3,7 +3,6 @@ package authentification
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"mess/database"
 	"mess/encryption"
@@ -15,7 +14,6 @@ import (
 )
 
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("Login handler trigged")
 	w.Header().Set("Content-type", "application/json")
 	if r.Method != http.MethodPost {
 		log.Printf("method not allowed")
@@ -55,6 +53,5 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		services.ResponseFunc(w, http.StatusInternalServerError, "failed to create JWT", nil)
 		return
 	}
-	fmt.Println("user login successfully\n" + token)
 	services.ResponseFunc(w, http.StatusOK, "user login successfully", map[string]string{"token": token})
 }

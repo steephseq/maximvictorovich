@@ -2,10 +2,12 @@ package profile
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"mess/database"
 	profileModels "mess/models/profileModels"
 	JWTModels "mess/models/services/jwt"
+	"mess/redis"
 	"mess/services"
 	"net/http"
 )
@@ -37,6 +39,11 @@ func SetXUnivesalHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	key := fmt.Sprintf("profile:%d", parameterName.OwnerID)
+	if err := redis.RedisClient.Del(redis.Ctx, key).Err(); err != nil {
+		log.Printf("failed to delete profile from redis, error:%v", err)
+	}
+
 	userIDJWT := r.Context().Value(JWTModels.UserIDKey)
 	userID, ok := userIDJWT.(uint)
 	if !ok {
@@ -55,6 +62,11 @@ func SetXUnivesalHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := setX(parameterName, parameterName.Column); err != nil {
 		services.ResponseFunc(w, http.StatusInternalServerError, "failed to change info", nil)
+		return
+	}
+
+	if err := InvalidateProfileCache(parameterName.OwnerID); err != nil {
+		log.Printf("EditProfileHandler: failed to invalidate profile cache for chat %d: %v", parameterName.OwnerID, err)
 		return
 	}
 	services.ResponseFunc(w, http.StatusOK, "successful change info", parameterName)
@@ -85,5 +97,16 @@ func checkRights(newParameter profileModels.NewProfileParameter, uid int, action
 			return ErrForbidden
 		}
 	}
+	return nil
+}
+
+func InvalidateProfileCache(chatID int) error {
+	key := fmt.Sprintf("profile:%d", chatID)
+	err := redis.RedisClient.Del(redis.Ctx, key).Err()
+	if err != nil {
+		log.Printf("❌ Failed to invalidate profile cache for chat %d: %v", chatID, err)
+		return err
+	}
+	log.Printf("✅ Profile cache invalidated for chat %d", chatID)
 	return nil
 }

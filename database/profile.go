@@ -35,8 +35,10 @@ func GetUserProfile(uID int) (profileModels.Profile, error) {
 
 func GetMyProfileHP(uid int) (profileModels.Profile, error) {
 	query := `SELECT
-			u.id, 
+			u.id,
 			u.name,
+			u.username,
+			u.bio,
 			a.url
 			FROM users u
 			JOIN avatars a ON a.owner_id=u.id
@@ -47,34 +49,37 @@ func GetMyProfileHP(uid int) (profileModels.Profile, error) {
 	return profile, err
 }
 
-func GetGroupProfile(chatOBJ chatsModels.Chat) (profileModels.Profile, error) {
+func GetGroupProfile(chat chatsModels.Chat) (profileModels.Profile, error) {
 	query := `SELECT
 		c.name,
 		c.bio,
 		a.url
 		FROM chats c
-		LEFT JOIN avatars a ON a.owner_id=c.id 
+		LEFT JOIN avatars a ON a.owner_id=c.id
 		WHERE c.id=$1 AND a.is_current=true
 		`
 	var gp profileModels.Profile
 
-	if err := DB.QueryRow(query, chatOBJ.ID).Scan(&gp.Name, &gp.Bio, &gp.AvatarURL); err != nil {
+	if err := DB.QueryRow(query, chat.ID).Scan(&gp.Name, &gp.Bio, &gp.AvatarURL); err != nil {
 		return gp, err
 	}
 
 	membersQuery := `SELECT
 		u.id,
 		u.name,
+		u.username,
+		cr.title,
 		a.url
 		FROM chats c
-		JOIN chats_users cu ON cu.chat_id=c.id 
+		JOIN chats_users cu ON cu.chat_id=c.id
 		JOIN users u ON u.id=cu.user_id
 		LEFT JOIN avatars a ON a.owner_id=u.id
+		LEFT JOIN chats_roles cr ON cr.user_id=u.id AND cr.chat_id=c.id
 		WHERE c.id=$1 and a.is_current=true
 		ORDER BY u.id
 	`
 
-	rows, err := DB.Query(membersQuery, chatOBJ.ID)
+	rows, err := DB.Query(membersQuery, chat.ID)
 	if err != nil {
 		return gp, err
 	}
@@ -83,11 +88,18 @@ func GetGroupProfile(chatOBJ chatsModels.Chat) (profileModels.Profile, error) {
 	var count int
 	for rows.Next() {
 		var (
-			user usersModels.User
+			user  usersModels.User
+			title sql.NullString
 		)
 
-		if err := rows.Scan(&user.ID, &user.Name, &user.Avatar); err != nil {
+		if err := rows.Scan(&user.ID, &user.Name, &user.UserName, &title, &user.Avatar); err != nil {
 			return gp, err
+		}
+		log.Printf("✅ AdminTitle: %s", title.String)
+		if title.Valid {
+			user.AdminTitle = title.String
+		} else {
+			user.AdminTitle = ""
 		}
 		gp.Members = append(gp.Members, user)
 		count += 1
@@ -95,7 +107,6 @@ func GetGroupProfile(chatOBJ chatsModels.Chat) (profileModels.Profile, error) {
 	if err := rows.Err(); err != nil {
 		return gp, err
 	}
-	log.Println(gp)
 	gp.CountMember = count
 	return gp, nil
 }

@@ -52,6 +52,5 @@ func GetChatsForHP(r *http.Request) ([]chatsModels.Chat, error) {
 			chatsLst[i].IsOnline = exists
 		}
 	}
-	log.Printf("successful getChatsOnHomePage")
 	return chatsLst, nil
 }

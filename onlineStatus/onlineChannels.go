@@ -15,16 +15,15 @@ import (
 
 type ClientSM chatsModels.Client
 
-func SendMessageToChatsChannels(key string, userID int, message string) error {
+func SendMessageToChatsChannels(key string, userID int, message string) {
 	allChats, err := database.GetChatsByUserID(userID)
 	if err != nil {
-		return err
+		log.Printf("failed to get chats by user id, error:%v", err)
+		return
 	}
 	for _, chat := range allChats {
 		redis.RedisClient.Publish(redis.Ctx, fmt.Sprintf(key+":%d", chat.ID), message)
 	}
-
-	return nil
 }
 
 func SetupChatRoom(ctx context.Context, typeMessage string, chatID int, key string) {
@@ -53,7 +52,7 @@ func SetupChatRoom(ctx context.Context, typeMessage string, chatID int, key stri
 					log.Printf("failed to get group profile for update, error:%v", err)
 					continue
 				}
-				exists, err := redis.RedisClient.SMembers(redis.Ctx, fmt.Sprintf("chat_online_users:%d", chatID)).Result()
+				exists, err := redis.RedisClient.SMembers(redis.Ctx, fmt.Sprintf("chat:online:users:%d", chatID)).Result()
 				if err != nil {
 					log.Printf("failed to get online members, error:%v", err)
 					continue

@@ -18,6 +18,7 @@ type Message struct {
 	Filename  *string     `json:"filename" db:"filename"` // Thumbnail filename
 	IsReady   bool        `json:"is_ready" db:"is_ready"`
 	Type      string      `json:"type" db:"type"`
+	Answer    *int        `json:"answer" db:"answer"`
 }
 
 type Chat struct {
@@ -77,6 +78,9 @@ type AvaliableActionsMessage struct {
 	CanEditMessage   bool `json:"can_edit_message"`
 }
 
+type AvaliableActionsUser struct {
+	CanDeleteUser bool `json:"can_delete_user" db:"can_delete_user"`
+}
 type AvaliableActionsChat struct {
 	CanDeleteMessage bool `json:"can_delete_message" db:"can_delete_message"`
 	CanEditMessage   bool `json:"can_edit_message" db:"can_edit_message"`

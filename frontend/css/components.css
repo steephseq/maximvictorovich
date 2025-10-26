@@ -1,3 +1,129 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap&subset=cyrillic');
+
+* {
+    font-family: 'Montserrat', system-ui, sans-serif;
+    font-weight: 500;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Улучшенная типографика */
+.welcome-title {
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+}
+
+.chat-header-name,
+.user-name,
+.profile-name {
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.chat-header-name {
+    font-weight: 700; /* Оставляем для заголовков */
+    color: #f8fafc;
+    font-size: 1.3rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #8b5cf6;
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+    background: rgba(60, 40, 120, 0.9);
+    border-radius: 16px !important;
+}
+
+
+
+.message-content {
+    font-size: 1.05rem;
+    line-height: 1.4;
+    word-wrap: break-word;
+    margin-bottom: 0.5rem;
+    font-weight: 400 !important; /* Убираем жирность */
+    letter-spacing: -0.01em;
+}
+.message-input-box:focus-within {
+    border-color: #8b5cf6;
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+    background: rgba(60, 40, 120, 0.9);
+    border-radius: 25px !important; /* Гарантируем скругление */
+}
+
+/* Улучшаем текст в поле ввода */
+.message-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    resize: none;
+    font-size: 1.1rem;
+    line-height: 1.5;
+    font-family: inherit;
+    background: transparent;
+    color: #f8fafc;
+    padding: 0;
+    min-height: 24px;
+    max-height: 120px;
+    overflow-y: auto;
+    font-weight: 400; /* Нормальная толщина */
+}
+
+.message-input-box {
+    flex: 1;
+    background: rgba(45, 27, 105, 0.8);
+    border: 2px solid rgba(139, 92, 246, 0.3);
+    border-radius: 25px !important; /* Принудительно скругляем */
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    min-height: 60px;
+    max-height: 150px;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+}
+
+.message-input:focus {
+    outline: none;
+    border: none;
+    box-shadow: none;
+}
+
+
+.chat-name {
+    font-weight: 600; /* Слегка уменьшаем */
+    color: #f8fafc;
+    margin-bottom: 0.3rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 1.1rem;
+}
+
+.empty-chat p {
+    font-weight: 800;
+}
+
+.start-chat-btn,
+.new-chat-btn,
+.send-btn {
+    font-weight: 600;
+}
+
+/* Мелкий текст */
+.chat-time,
+.chat-header-status,
+.user-status,
+.message-time {
+    font-weight: 500;
+}
+
 /* Компонент профиля группы */
 .group-profile {
     background: rgba(255, 253, 250, 0.95);
@@ -7,7 +133,7 @@
     box-shadow: var(--shadow-xl);
     width: 100%;
     max-width: 42rem;
-    animation: scaleIn 0.5s ease-out;
+    animation: scaleIn 0.5s ease-ou t;
 }
 
 /* Шапка профиля */
@@ -47,6 +173,17 @@
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 1.5rem;
+}
+
+.status-online {
+    color: #8b5cf6;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.status-offline {
+    color: #a78bfa;
+    font-size: 0.8rem;
 }
 
 .info-main {
@@ -373,3 +510,4 @@
     align-items: center;
     color: #6b7280;
 }
+

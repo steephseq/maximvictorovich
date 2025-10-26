@@ -4,11 +4,227 @@ import { User, Chat } from './types.js';
 export class GroupManager {
     private api: ProfileAPI;
     private homeManager: any;
+    private currentChatId: number = 0;
+    private currentUser: User | null = null;
 
     constructor(api: ProfileAPI, homeManager: any) {
         this.api = api;
         this.homeManager = homeManager;
         this.initGroupCreation();
+        this.setupGroupManagement();
+        this.loadCurrentUser();
+    }
+
+    private async loadCurrentUser() {
+        try {
+            this.currentUser = await this.api.getProfile();
+        } catch (error) {
+            console.error('Ошибка загрузки текущего пользователя:', error);
+        }
+    }
+
+    public setCurrentChatId(chatId: number) {
+        this.currentChatId = chatId;
+    }
+
+    public setCurrentUser(user: User) {
+        this.currentUser = user;
+    }
+
+    public async leaveGroup(): Promise<void> {
+        if (!this.currentChatId) {
+            alert('Ошибка: не выбран чат');
+            return;
+        }
+        
+        if (!this.currentUser) {
+            alert('Ошибка: пользователь не загружен');
+            return;
+        }
+        
+        if (!confirm(`Вы уверены, что хотите покинуть группу?`)) {
+            return;
+        }
+        
+        
+        try {
+            await this.api.removeUserFromChat(this.currentChatId, this.currentUser.id);
+            alert('Вы покинули группу');
+            window.location.reload();
+        } catch (error: any) {
+            let errorMessage = 'Не удалось покинуть группу';
+            if (error.message?.includes('403')) {
+                errorMessage = 'Недостаточно прав для выхода из группы';
+            } else if (error.message?.includes('404')) {
+                errorMessage = 'Чат не найден';
+            } else if (error.message?.includes('user not into chat')) {
+                errorMessage = 'Вы не участник этой группы';
+            }
+            alert(errorMessage);
+        }
+    }
+
+    private filterAvailableActions(actions: any, targetUser: User): Array<{id: string, label: string, icon: string, danger?: boolean}> {
+        const availableActions = [];
+        const isSelf = this.currentUser && this.currentUser.id === targetUser.id;
+
+        if (actions.CanDeleteUser && !isSelf) {
+            availableActions.push({
+                id: 'delete_user',
+                label: 'Удалить из чата',
+                icon: 'fas fa-user-times',
+                danger: true
+            });
+        }
+
+        if (actions.CanManageRoles && !isSelf) {
+            availableActions.push({
+                id: 'toggle_admin',
+                label: 'Сделать админом',
+                icon: 'fas fa-user-shield'
+            });
+        }
+
+        if (actions.CanBanUser && !isSelf) {
+            availableActions.push({
+                id: 'ban_user',
+                label: 'Заблокировать',
+                icon: 'fas fa-ban',
+                danger: true
+            });
+        }
+
+        return availableActions;
+    }
+
+    private renderUserActions(targetUser: User, actions: Array<{id: string, label: string, icon: string, danger?: boolean}>): void {
+        const actionsList = document.getElementById('userActionsList');
+        if (!actionsList) return;
+
+        actionsList.innerHTML = '';
+
+        const header = document.createElement('div');
+        header.className = 'action-header';
+        header.innerHTML = `
+            <div class="member-info">
+                <img src="${targetUser.avatar_url || targetUser.avatar || targetUser.url || 'https://via.placeholder.com/40'}" 
+                     alt="${targetUser.name}" 
+                     class="member-avatar-small">
+                <div class="member-details">
+                    <span class="member-name">${targetUser.name || 'Без имени'}</span>
+                    <span class="member-username">@${targetUser.username || 'user'}</span>
+                </div>
+            </div>
+        `;
+        actionsList.appendChild(header);
+
+        actions.forEach(action => {
+            const actionBtn = document.createElement('button');
+            actionBtn.className = `action-btn ${action.danger ? 'danger' : ''}`;
+            actionBtn.innerHTML = `
+                <i class="${action.icon}"></i>
+                <span>${action.label}</span>
+            `;
+            actionBtn.addEventListener('click', () => {
+                this.handleUserAction(action.id, targetUser);
+            });
+            actionsList.appendChild(actionBtn);
+        });
+    }
+
+    private async handleUserAction(actionId: string, targetUser: User): Promise<void> {
+        switch (actionId) {
+            case 'delete_user':
+                await this.deleteUserFromChat(targetUser);
+                break;
+            case 'toggle_admin':
+                await this.toggleAdminRole(targetUser);
+                break;
+            case 'ban_user':
+                await this.banUser(targetUser);
+                break;
+        }
+        this.hideUserActionsModal();
+    }
+
+    private async deleteUserFromChat(targetUser: User): Promise<void> {
+        if (!this.currentChatId) return;
+
+        if (!confirm(`Вы уверены, что хотите удалить ${targetUser.name} из чата?`)) {
+            return;
+        }
+
+        try {
+            await this.api.removeUserFromChat(this.currentChatId, targetUser.id);
+            this.triggerProfileUpdate();
+        } catch (error) {
+            console.error('Ошибка при удалении пользователя:', error);
+            alert('Ошибка при удалении пользователя');
+        }
+    }
+
+    private async toggleAdminRole(targetUser: User): Promise<void> {
+        alert(`Роль пользователя ${targetUser.name} изменена`);
+    }
+
+    private async banUser(targetUser: User): Promise<void> {
+        if (!confirm(`Заблокировать пользователя ${targetUser.name}?`)) {
+            return;
+        }
+    }
+
+    public async showUserActions(chatId: number, targetUser: User): Promise<void> {
+        this.currentChatId = chatId;
+
+        try {
+            const actions = await this.api.getAvailableUserActions(chatId);
+            const availableActions = this.filterAvailableActions(actions, targetUser);
+
+            if (availableActions.length === 0) return;
+
+            this.renderUserActions(targetUser, availableActions);
+            this.showUserActionsModal();
+        } catch (error) {
+            console.error('Ошибка получения доступных действий:', error);
+        }
+    }
+
+    private showUserActionsModal(): void {
+        const modal = document.getElementById('userActionsModal');
+        if (!modal) return;
+
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+
+        const overlay = modal.querySelector('.modal-overlay');
+        if (overlay) {
+            overlay.addEventListener('click', () => {
+                this.hideUserActionsModal();
+            });
+        }
+    }
+
+    private hideUserActionsModal(): void {
+        const modal = document.getElementById('userActionsModal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+        }
+    }
+
+    private triggerProfileUpdate(): void {
+        const event = new CustomEvent('profileUpdateRequested');
+        document.dispatchEvent(event);
+    }
+
+    private setupGroupManagement(): void {
+        document.getElementById('leaveGroupBtn')?.addEventListener('click', () => {
+            this.leaveGroup();
+        });
+
+        document.getElementById('closeUserActionsModal')?.addEventListener('click', () => {
+            this.hideUserActionsModal();
+        });
     }
 
     private initGroupCreation(): void {
@@ -63,6 +279,21 @@ export class GroupManager {
                         <button class="btn-primary group-create-btn" disabled>
                             <i class="fas fa-plus"></i> Создать группу
                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="userActionsModal" class="modal hidden">
+                <div class="modal-overlay"></div>
+                <div class="modal-content user-actions-modal">
+                    <div class="modal-header">
+                        <h3 class="modal-title">Действия с пользователем</h3>
+                        <button class="modal-close" id="closeUserActionsModal">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="user-actions-list" id="userActionsList"></div>
                     </div>
                 </div>
             </div>

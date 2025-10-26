@@ -1,6 +1,7 @@
 package chats
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -41,6 +42,7 @@ func CreateChatHandler(w http.ResponseWriter, r *http.Request) {
 	if err := database.AddAdmin(usersModels.AdminRoots{
 		UserID:            int(userID),
 		ChatID:            chatID,
+		Title:             sql.NullString{String: "Владелец", Valid: true},
 		CanDeleteMessages: true,
 		CanBanUsers:       true,
 		CanChangeBio:      true,
