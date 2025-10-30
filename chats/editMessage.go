@@ -75,7 +75,7 @@ func EditMessageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("код дошел до сюда")
 
-	if err := database.UpdateMessage(newMessage.ID, newMessage.Content.(string), newMessage.IsReady); err != nil {
+	if err := database.UpdateMessage(newMessage); err != nil {
 		log.Printf("EditMessageHandler:failed to update message,err:%v", err)
 		services.ResponseFunc(w, http.StatusInternalServerError, "Internal Server Error", nil)
 		return

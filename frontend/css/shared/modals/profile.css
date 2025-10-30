@@ -1,0 +1,73 @@
+/* Profile Avatar Section */
+.profile-avatar-section {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: rgba(45, 27, 105, 0.4);
+    border-radius: 16px;
+    border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.profile-avatar-container {
+    position: relative;
+    display: inline-block;
+}
+
+.profile-avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #8b5cf6;
+    box-shadow: 0 12px 30px rgba(139, 92, 246, 0.4);
+}
+
+.profile-name {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #f8fafc !important;
+    margin-bottom: 0.5rem;
+}
+
+.profile-bio {
+    background: rgba(45, 27, 105, 0.6);
+    padding: 1rem;
+    border-radius: 16px;
+    margin-bottom: 1.5rem;
+    border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+/* Profile Form */
+.profile-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-group label {
+    color: #c4b5fd !important;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.form-input, .form-textarea {
+    background: rgba(45, 27, 105, 0.8);
+    border: 2px solid rgba(139, 92, 246, 0.3);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    color: #f8fafc !important;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.form-input:focus, .form-textarea:focus {
+    outline: none;
+    border-color: #8b5cf6;
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+}

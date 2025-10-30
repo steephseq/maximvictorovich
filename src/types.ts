@@ -68,10 +68,11 @@ export interface Message {
     type?: string;
     attachments?: UploadedFile[];
     thumbnail_url?: string;
-    url?: string;
-    filename?: string;
+    url?: string;           // 🔴 ПОЛНЫЙ URL к медиа-файлу
+    filename?: string;      // 🔴 Исходное имя файла (если нужно)
+    duration?: number;      // 🔴 Длительность для голосовых
+    thumbnail?: string;     // 🔴 ДОБАВЬ ЭТО ПОЛЕ для превью видео
 }
-
 export interface GroupProfile {
     id: number;
     name: string;

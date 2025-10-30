@@ -29,7 +29,7 @@ type Attachment struct {
 
 type Avatar struct {
 	URL       string    `json:"url" db:"url"`
-	OwnerType string    `json:"owner_type" db:"owner_type"`
+	IsGroup   bool      `json:"is_group" db:"is_group"`
 	OwnerID   int       `json:"owner_id" db:"owner_id"`
 	IsCurrent bool      `json:"is_current" db:"is_current"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`

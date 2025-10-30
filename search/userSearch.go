@@ -62,5 +62,7 @@ func SearchUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("successful search ,u:%+v", u)
+	url := services.GetAvatarURL(u.Avatar)
+	u.Avatar = url
 	services.ResponseFunc(w, http.StatusOK, "successful search", []usersModels.User{u})
 }

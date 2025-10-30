@@ -21,6 +21,7 @@ var upgrader = websocket.Upgrader{
 }
 
 func OnlineStatusHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("OnlineStatusHandler: triggered")
 	userIDStr := r.Context().Value(JWTModels.UserIDKey)
 	userID, ok := userIDStr.(uint)
 	if !ok {
@@ -54,6 +55,7 @@ func OnlineStatusHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if string(msg) == "ping" {
+			log.Printf("🏓 Received ping from user %d", userID)
 			UpdateOnlineStatus(int(userID))
 			continue
 		}
@@ -64,7 +66,7 @@ func OnlineStatusHandler(w http.ResponseWriter, r *http.Request) {
 func UserOnlineStatus(userID int, action string) {
 	switch action {
 	case "add":
-		if err := redis.RedisSAdd("online:users", userID); err != nil {
+		if err := redis.RedisSAdd("online:users", strconv.Itoa(userID)); err != nil {
 			log.Printf("failed to add user to online set, error:%v", err)
 		}
 		fields := map[string]interface{}{
@@ -75,11 +77,12 @@ func UserOnlineStatus(userID int, action string) {
 		if err := redis.RedisHSet(key, fields); err != nil {
 			log.Printf("failed to set user last seen, error:%v", err)
 		}
-		if err := redis.RedisExpire(key, 10*time.Second); err != nil {
+		if err := redis.RedisExpire(key, 35*time.Second); err != nil {
 			log.Printf("failed to set user last seen, error:%v", err)
 		}
 		OnlineUserChats(userID, "add")
 	case "delete":
+		log.Printf("🔴 User %d is offline", userID)
 		if err := redis.RedisClient.SRem(redis.Ctx, "online:users", userID).Err(); err != nil {
 			log.Printf("failed to remove user from online set, error:%v", err)
 		}
@@ -96,8 +99,9 @@ func UserOnlineStatus(userID int, action string) {
 }
 
 func UpdateOnlineStatus(userID int) {
+	log.Printf("🟢 User %d update online status", userID)
 	key := fmt.Sprintf("user:%d:status", userID)
-	if err := redis.RedisExpire(key, 10*time.Minute); err != nil {
+	if err := redis.RedisExpire(key, 30*time.Minute); err != nil {
 		log.Printf("failed to update online status, error:%v", err)
 	}
 	if err := redis.RedisHSet(key, map[string]interface{}{"last_seen": time.Now().UTC().Format(time.RFC3339)}); err != nil {
@@ -105,7 +109,7 @@ func UpdateOnlineStatus(userID int) {
 	}
 
 	key = fmt.Sprintf("user:%d:active", userID)
-	if err := redis.RedisExpire(key, 10*time.Second); err != nil {
+	if err := redis.RedisExpire(key, 35*time.Second); err != nil {
 		log.Printf("failed to update online status, error:%v", err)
 	}
 }
@@ -130,7 +134,7 @@ func OnlineUserChats(userID int, action string) {
 }
 
 func OnlineWorker(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(35 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {

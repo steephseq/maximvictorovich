@@ -1,6 +1,7 @@
 package chats
 
 import (
+	"encoding/json"
 	"log"
 	"mess/database"
 	"mess/services"
@@ -40,5 +41,14 @@ func ShowMessagesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	services.ResponseFunc(w, http.StatusOK, "successfully get messages", messages)
+	var normalizedMessages []json.RawMessage
+	for i := range messages {
+		data, err := database.MarshalMessage(&messages[i])
+		if err != nil {
+			log.Printf("Failed to marshal message: %v", err)
+			continue
+		}
+		normalizedMessages = append(normalizedMessages, data)
+	}
+	services.ResponseFunc(w, http.StatusOK, "successfully get messages", normalizedMessages)
 }

@@ -10,9 +10,15 @@ export class GroupManager {
     constructor(api: ProfileAPI, homeManager: any) {
         this.api = api;
         this.homeManager = homeManager;
-        this.initGroupCreation();
-        this.setupGroupManagement();
-        this.loadCurrentUser();
+        
+        // Для отладки - добавляем в глобальную область
+        (window as any).groupManager = this;
+        
+        setTimeout(() => {
+            this.initGroupCreation();
+            this.setupGroupManagement();
+            this.loadCurrentUser();
+        }, 1000);
     }
 
     private async loadCurrentUser() {
@@ -45,7 +51,6 @@ export class GroupManager {
         if (!confirm(`Вы уверены, что хотите покинуть группу?`)) {
             return;
         }
-        
         
         try {
             await this.api.removeUserFromChat(this.currentChatId, this.currentUser.id);
@@ -228,88 +233,48 @@ export class GroupManager {
     }
 
     private initGroupCreation(): void {
-        this.createGroupModal();
         this.setupGroupCreationListeners();
-    }
-
-    private createGroupModal(): void {
-        const modalHTML = `
-            <div class="group-modal-overlay hidden" id="groupModal">
-                <div class="group-modal">
-                    <div class="group-modal-header">
-                        <div class="group-header-content">
-                            <i class="fas fa-users group-header-icon"></i>
-                            <h3>Создать группу</h3>
-                        </div>
-                        <button class="group-close-btn">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    
-                    <div class="group-form">
-                        <div class="form-group">
-                            <label for="groupName">Название группы</label>
-                            <input type="text" id="groupName" 
-                                   placeholder="Введите название группы..." 
-                                   class="group-input">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="userSearch">Добавить участников</label>
-                            <div class="user-search-box">
-                                <i class="fas fa-search user-search-icon"></i>
-                                <input type="text" id="userSearch" 
-                                       placeholder="Поиск пользователей..." 
-                                       class="user-search-input">
-                            </div>
-                        </div>
-
-                        <div class="selected-users" id="selectedUsers">
-                            <div class="selected-users-empty">
-                                <i class="fas fa-user-plus"></i>
-                                <span>Пока нет выбранных пользователей</span>
-                            </div>
-                        </div>
-
-                        <div class="users-search-results hidden" id="usersSearchResults"></div>
-                    </div>
-
-                    <div class="group-modal-footer">
-                        <button class="btn-secondary group-cancel-btn">Отмена</button>
-                        <button class="btn-primary group-create-btn" disabled>
-                            <i class="fas fa-plus"></i> Создать группу
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div id="userActionsModal" class="modal hidden">
-                <div class="modal-overlay"></div>
-                <div class="modal-content user-actions-modal">
-                    <div class="modal-header">
-                        <h3 class="modal-title">Действия с пользователем</h3>
-                        <button class="modal-close" id="closeUserActionsModal">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="user-actions-list" id="userActionsList"></div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        document.body.insertAdjacentHTML('beforeend', modalHTML);
         this.setupModalListeners();
     }
 
     private setupGroupCreationListeners(): void {
-        const newChatBtn = document.querySelector('.new-chat-btn');
-        if (newChatBtn) {
-            newChatBtn.addEventListener('click', () => {
-                this.openGroupCreation();
-            });
-        }
+        const setupHandler = () => {
+            const newChatBtn = document.querySelector('.new-chat-btn');
+            
+            if (newChatBtn) {
+                // Удаляем все старые обработчики
+                const newBtn = newChatBtn.cloneNode(true) as HTMLElement;
+                newChatBtn.parentNode?.replaceChild(newBtn, newChatBtn);
+                
+                // Добавляем новый обработчик
+                newBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.openGroupCreation();
+                });
+                
+                // Добавляем визуальные стили
+                newBtn.style.cursor = 'pointer';
+                newBtn.style.transition = 'all 0.2s ease';
+                
+                newBtn.addEventListener('mouseenter', () => {
+                    newBtn.style.transform = 'scale(1.1)';
+                    newBtn.style.opacity = '0.8';
+                });
+                
+                newBtn.addEventListener('mouseleave', () => {
+                    newBtn.style.transform = 'scale(1)';
+                    newBtn.style.opacity = '1';
+                });
+            }
+        };
+    
+        // Пробуем сразу
+        setupHandler();
+        
+        // И через задержку на случай если DOM еще не готов
+        setTimeout(setupHandler, 500);
+        setTimeout(setupHandler, 1000);
     }
 
     private setupModalListeners(): void {
@@ -319,6 +284,13 @@ export class GroupManager {
         const createBtn = modal?.querySelector('.group-create-btn') as HTMLButtonElement;
         const groupNameInput = document.getElementById('groupName') as HTMLInputElement;
         const userSearchInput = document.getElementById('userSearch') as HTMLInputElement;
+        const resultsContainer = document.getElementById('usersSearchResults');
+
+        // Убедитесь, что элементы существуют
+        if (!modal || !closeBtn || !cancelBtn || !createBtn || !groupNameInput || !userSearchInput || !resultsContainer) {
+            console.error('❌ GroupManager: Some modal elements not found!');
+            return;
+        }
 
         closeBtn?.addEventListener('click', () => this.closeGroupCreation());
         cancelBtn?.addEventListener('click', () => this.closeGroupCreation());
@@ -370,54 +342,87 @@ export class GroupManager {
 
     private async searchUsers(query: string): Promise<void> {
         const resultsContainer = document.getElementById('usersSearchResults');
-        if (!resultsContainer) return;
-
+        if (!resultsContainer) {
+            console.error('❌ GroupManager: usersSearchResults container not found');
+            return;
+        }
+    
         if (!query || query.length < 2) {
             resultsContainer.classList.add('hidden');
             return;
         }
-
+    
+        // Показываем индикатор загрузки
+        resultsContainer.innerHTML = `
+            <div class="search-loading">
+                <div class="loading-spinner"></div>
+                <p>Поиск пользователей...</p>
+            </div>
+        `;
+        resultsContainer.classList.remove('hidden');
+    
         try {
             const users = await this.api.searchUsers(query);
-            this.renderUserSearchResults(users);
+            
+            if (users && Array.isArray(users)) {
+                // ФИЛЬТРУЕМ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ ИЗ РЕЗУЛЬТАТОВ
+                const filteredUsers = users.filter(user => {
+                    const isCurrentUser = this.currentUser && user.id === this.currentUser.id;
+                    return !isCurrentUser;
+                });
+                
+                this.renderUserSearchResults(filteredUsers);
+            } else {
+                console.error('❌ GroupManager: Invalid users data:', users);
+                this.renderUserSearchResults([]);
+            }
         } catch (error) {
-            console.error('User search failed:', error);
+            console.error('❌ GroupManager: User search failed:', error);
+            resultsContainer.innerHTML = `
+                <div class="search-error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>Ошибка при поиске пользователей</p>
+                </div>
+            `;
+            resultsContainer.classList.remove('hidden');
         }
     }
 
     private renderUserSearchResults(users: User[]): void {
         const resultsContainer = document.getElementById('usersSearchResults');
-        if (!resultsContainer) return;
-
-        if (users.length === 0) {
-            resultsContainer.innerHTML = `
-                <div class="search-empty">
-                    <i class="fas fa-search"></i>
-                    <p>Пользователи не найдены</p>
+        if (!resultsContainer) {
+            console.error('❌ GroupManager: resultsContainer not found in renderUserSearchResults');
+            return;
+        }
+    
+        if (users.length > 0) {
+            const usersHTML = users.map(user => `
+                <div class="user-search-result" data-user-id="${user.id}">
+                    <div class="user-avatar">
+                        <img src="${user.avatar_url || user.avatar || user.url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=40&h=40&fit=crop&crop=face'}" 
+                             alt="${user.name}"
+                             class="user-avatar-img">
+                    </div>
+                    <div class="user-info">
+                        <div class="user-name">${this.escapeHtml(user.name || 'Без имени')}</div>
+                        <div class="user-username">@${this.escapeHtml(user.username || 'user')}</div>
+                    </div>
+                    <button class="add-user-btn" title="Добавить">
+                        <i class="fas fa-plus"></i>
+                    </button>
                 </div>
-            `;
-        } else {
+            `).join('');
+    
             resultsContainer.innerHTML = `
                 <div class="users-list">
-                    ${users.map(user => `
-                        <div class="user-search-result" data-user-id="${user.id}">
-                            <div class="user-avatar">
-                                <img src="${user.avatar_url || user.avatar || user.url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=40&h=40&fit=crop&crop=face'}" 
-                                     alt="${user.name}">
-                            </div>
-                            <div class="user-info">
-                                <div class="user-name">${this.escapeHtml(user.name)}</div>
-                                <div class="user-username">@${this.escapeHtml(user.username)}</div>
-                            </div>
-                            <button class="add-user-btn" title="Добавить">
-                                <i class="fas fa-plus"></i>
-                            </button>
-                        </div>
-                    `).join('')}
+                    ${usersHTML}
                 </div>
             `;
-
-            resultsContainer.querySelectorAll('.add-user-btn').forEach(btn => {
+    
+            // Добавляем обработчики событий
+            const addButtons = resultsContainer.querySelectorAll('.add-user-btn');
+            
+            addButtons.forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const userResult = (e.target as HTMLElement).closest('.user-search-result');
@@ -427,44 +432,61 @@ export class GroupManager {
                     }
                 });
             });
-
-            resultsContainer.querySelectorAll('.user-search-result').forEach(item => {
+    
+            const resultItems = resultsContainer.querySelectorAll('.user-search-result');
+            
+            resultItems.forEach(item => {
                 item.addEventListener('click', (e) => {
                     const userId = parseInt(item.getAttribute('data-user-id')!);
                     this.addUserToSelection(userId, item);
                 });
             });
+        } else {
+            resultsContainer.innerHTML = `
+                <div class="search-empty">
+                    <i class="fas fa-user-slash"></i>
+                    <p>Пользователи не найдены</p>
+                </div>
+            `;
         }
-
+    
         resultsContainer.classList.remove('hidden');
     }
 
     private addUserToSelection(userId: number, userElement: Element): void {
         const selectedUsersContainer = document.getElementById('selectedUsers');
-        if (!selectedUsersContainer) return;
-
+        if (!selectedUsersContainer) {
+            console.error('❌ GroupManager: selectedUsers container not found');
+            return;
+        }
+    
         const existingUser = selectedUsersContainer.querySelector(`[data-user-id="${userId}"]`);
-        if (existingUser) return;
-
+        if (existingUser) {
+            return;
+        }
+    
         const userName = userElement.querySelector('.user-name')?.textContent || 'Пользователь';
         const userAvatar = userElement.querySelector('.user-avatar img')?.getAttribute('src') || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=40&h=40&fit=crop&crop=face';
-
-        const emptyState = selectedUsersContainer.querySelector('.selected-users-empty');
-        if (emptyState) {
+    
+        // УДАЛЯЕМ ВСЕ empty states ПРИ ДОБАВЛЕНИИ ПЕРВОГО ПОЛЬЗОВАТЕЛЯ
+        const emptyStates = selectedUsersContainer.querySelectorAll('.selected-users-empty');
+        emptyStates.forEach(emptyState => {
             emptyState.remove();
-        }
-
+        });
+    
         const userChip = document.createElement('div');
         userChip.className = 'selected-user-chip';
         userChip.setAttribute('data-user-id', userId.toString());
         userChip.innerHTML = `
-            <img src="${userAvatar}" alt="${userName}" class="selected-user-avatar">
+            <img src="${userAvatar}" alt="${userName}" 
+                 class="selected-user-avatar"
+                 style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
             <span class="selected-user-name">${userName}</span>
             <button class="remove-user-btn" title="Удалить">
                 <i class="fas fa-times"></i>
             </button>
         `;
-
+    
         const removeBtn = userChip.querySelector('.remove-user-btn') as HTMLButtonElement;
         removeBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -472,9 +494,9 @@ export class GroupManager {
             this.checkEmptyState();
             this.validateForm();
         });
-
+    
         selectedUsersContainer.appendChild(userChip);
-
+    
         const userSearchInput = document.getElementById('userSearch') as HTMLInputElement;
         if (userSearchInput) {
             userSearchInput.value = '';
@@ -483,16 +505,19 @@ export class GroupManager {
         if (resultsContainer) {
             resultsContainer.classList.add('hidden');
         }
-
+    
         this.validateForm();
     }
 
     private checkEmptyState(): void {
         const selectedUsersContainer = document.getElementById('selectedUsers');
         if (!selectedUsersContainer) return;
-
+    
         const selectedUsers = selectedUsersContainer.querySelectorAll('.selected-user-chip');
+        
+        // ПОЛНОСТЬЮ ОЧИЩАЕМ КОНТЕЙНЕР ПЕРЕД ДОБАВЛЕНИЕМ empty state
         if (selectedUsers.length === 0) {
+            selectedUsersContainer.innerHTML = ''; // Очищаем полностью
             selectedUsersContainer.innerHTML = `
                 <div class="selected-users-empty">
                     <i class="fas fa-user-plus"></i>
@@ -575,16 +600,21 @@ export class GroupManager {
 
     public openGroupCreation(): void {
         const modal = document.getElementById('groupModal');
+        
+        if (!modal) {
+            console.error('❌ GroupManager: groupModal not found in DOM!');
+            return;
+        }
+        
         const groupNameInput = document.getElementById('groupName') as HTMLInputElement;
         
         if (modal && groupNameInput) {
             modal.classList.remove('hidden');
+            modal.style.display = 'flex';
             groupNameInput.focus();
             this.resetForm();
-            
-            setTimeout(() => {
-                modal.classList.add('group-modal-open');
-            }, 10);
+        } else {
+            console.error('❌ GroupManager: Failed to open modal - elements not found');
         }
     }
 
@@ -592,12 +622,8 @@ export class GroupManager {
         const modal = document.getElementById('groupModal');
         
         if (modal) {
-            modal.classList.remove('group-modal-open');
-            
-            setTimeout(() => {
-                modal.classList.add('hidden');
-                this.resetForm();
-            }, 200);
+            modal.classList.add('hidden');
+            this.resetForm();
         }
     }
 
@@ -605,14 +631,23 @@ export class GroupManager {
         const groupNameInput = document.getElementById('groupName') as HTMLInputElement;
         const userSearchInput = document.getElementById('userSearch') as HTMLInputElement;
         const resultsContainer = document.getElementById('usersSearchResults');
+        const selectedUsersContainer = document.getElementById('selectedUsers');
         
         if (groupNameInput) groupNameInput.value = '';
         if (userSearchInput) userSearchInput.value = '';
         if (resultsContainer) {
             resultsContainer.classList.add('hidden');
         }
-
-        this.checkEmptyState();
+        if (selectedUsersContainer) {
+            // ПОЛНОСТЬЮ СБРАСЫВАЕМ ВЫБРАННЫХ ПОЛЬЗОВАТЕЛЕЙ
+            selectedUsersContainer.innerHTML = `
+                <div class="selected-users-empty">
+                    <i class="fas fa-user-plus"></i>
+                    <span>Пока нет выбранных пользователей</span>
+                </div>
+            `;
+        }
+    
         this.validateForm();
     }
 

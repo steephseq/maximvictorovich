@@ -14,6 +14,8 @@ import (
 	"mess/search"
 	"mess/services"
 	"net/http"
+
+	"github.com/joho/godotenv"
 )
 
 // Временные handlers для отладки
@@ -26,18 +28,20 @@ func debugPublicHandler(h http.HandlerFunc) http.Handler {
 }
 
 func main() {
+	services.InitCloudConfig()
 	if err := database.InitDB(); err != nil {
 		log.Printf("failed to init DB,error:%v", err)
+		log.Fatal(err)
 	}
 	if err := redis.InitRedis(); err != nil {
 		log.Printf("failed to init redis,error:%v", err)
+		log.Fatal(err)
 	}
 
-	//ctx, cancel := context.WithCancel(context.Background())
-	//defer cancel()
-	//go onlineStatus.OnlineWorker(ctx)
-	//go onlineStatus.RedisExpireWorker(ctx)
-
+	if err := godotenv.Load(); err != nil {
+		log.Printf("failed to load env: %v", err)
+		log.Fatal(err)
+	}
 	mux := http.NewServeMux()
 
 	// Public routes (БЕЗ RateLimit для отладки)
@@ -70,6 +74,7 @@ func main() {
 	mux.Handle("/ws/profile", debugProtectedHandler(profile.ProfileWSHandler))
 	mux.Handle("/ws", debugProtectedHandler(chats.SendMessageHandler))
 	mux.Handle("/howCanIDoUser", debugProtectedHandler(chats.HowCanDoWithUserHandler))
+	mux.Handle("/howCanIDoGroup", debugProtectedHandler(chats.HowCanDoWithGroupHandler))
 	// Static files
 	fs := http.FileServer(http.Dir("./frontend"))
 	mux.Handle("/", fs)
@@ -79,4 +84,5 @@ func main() {
 	if err := http.ListenAndServeTLS(":8080", "localhost.crt", "localhost.key", handler); err != nil {
 		log.Fatal(err)
 	}
+
 }

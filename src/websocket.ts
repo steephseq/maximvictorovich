@@ -32,11 +32,10 @@ export class WebSocketManager {
                 return;
             }
 
-            const wsUrl = `wss://localhost:8080/ws?chat_id=${this.chatId}&token=${encodeURIComponent(token)}`;
+            const wsUrl = `wss://193.47.60.194:8080/ws?chat_id=${this.chatId}&token=${encodeURIComponent(token)}`;
             this.ws = new WebSocket(wsUrl);
 
             this.ws.onopen = () => {
-                console.log(`✅ WebSocket connected to chat ${this.chatId}`);
                 this.reconnectInterval = 1000;
                 resolve();
             };
@@ -60,7 +59,6 @@ export class WebSocketManager {
             };
 
             this.ws.onclose = () => {
-                console.warn('⚠️ WebSocket for chat disconnected.');
                 if (this.shouldReconnect) {
                     setTimeout(() => this.connect(), this.reconnectInterval);
                     this.reconnectInterval = Math.min(this.reconnectInterval * 2, 30000);
@@ -118,17 +116,18 @@ class StatusSocket {
             return;
         }
 
-        const wsUrl = `wss://localhost:8080/ws/onlineStatus?token=${encodeURIComponent(token)}`;
+        const wsUrl = `wss://193.47.60.194:8080/ws/onlineStatus?token=${encodeURIComponent(token)}`;
         this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {
-            console.log('✅ Global status WebSocket connected.');
             this.reconnectInterval = 1000;
 
             if (this.pingInterval) clearInterval(this.pingInterval);
             this.pingInterval = window.setInterval(() => {
-                if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send('ping');
-            }, 30000);
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    this.ws.send('ping');
+                }
+            }, 10000);
         };
 
         this.ws.onmessage = (event: MessageEvent) => {
@@ -148,7 +147,6 @@ class StatusSocket {
         };
 
         this.ws.onclose = () => {
-            console.warn('⚠️ Global status WebSocket disconnected. Reconnecting...');
             if (this.pingInterval) clearInterval(this.pingInterval);
             setTimeout(() => this.connect(), this.reconnectInterval);
             this.reconnectInterval = Math.min(this.reconnectInterval * 2, 30000);
@@ -175,11 +173,13 @@ class ProfileWebSocketManager {
     private reconnectInterval: number = 1000;
 
     connectToProfile(chatId: number): void {
-        // Закрываем предыдущее соединение если chatId изменился
+        console.log(`🔴 ProfileWebSocketManager: connectToProfile called for chat ${chatId}`);
+        
         if (this.currentChatId !== chatId && this.ws) {
+            console.log(`🔴 Closing previous WebSocket for chat ${this.currentChatId}`);
             this.ws.close();
         }
-
+    
         this.currentChatId = chatId;
         const token = authManager.getToken();
         
@@ -188,39 +188,57 @@ class ProfileWebSocketManager {
             setTimeout(() => this.connectToProfile(chatId), 5000);
             return;
         }
-
-        const wsUrl = `wss://localhost:8080/ws/profile?chat_id=${chatId}&token=${encodeURIComponent(token)}`;
+    
+        const wsUrl = `wss://193.47.60.194:8080/ws/profile?chat_id=${chatId}&token=${encodeURIComponent(token)}`;
+        console.log(`🔴 Connecting to profile WebSocket: ${wsUrl}`);
         this.ws = new WebSocket(wsUrl);
-
+    
         this.ws.onopen = () => {
             console.log(`✅ Profile WebSocket connected for chat ${chatId}`);
             this.reconnectInterval = 1000;
         };
-
+    
         this.ws.onmessage = (event: MessageEvent) => {
+            console.log(`📨 RAW Profile WebSocket message for chat ${chatId}:`, event.data);
             try {
                 const data = JSON.parse(event.data);
-                console.log('📨 Profile update received:', data);
+                console.log(`📨 PARSED Profile WebSocket message:`, data);
                 
-                // Уведомляем всех слушателей
                 this.messageListeners.forEach(listener => listener(data));
                 
-                // Диспатчим глобальные события
-                if (data.type === 'profile_update') {
+                if (data.type === 'profile_update' || data.type === 'profile:update') {
+                    console.log('🔄 Profile update received:', data.content);
                     const customEvent = new CustomEvent('profileUpdated', { detail: data.content });
                     document.dispatchEvent(customEvent);
+                }
+                // 🔴 ДОБАВЬ ЭТОТ БЛОК ДЛЯ СТАТУСОВ
+                else if (data.type === 'status_update' || data.type === 'user_status_update') {
+                    console.log('🔄 Status update received in profile WS:', data);
+                    const statusEvent = new CustomEvent('profileStatusUpdate', { 
+                        detail: {
+                            data: data.data || data.content,
+                            chatId: chatId
+                        }
+                    });
+                    document.dispatchEvent(statusEvent);
+                }
+                // 🔴 ДОБАВЬ ОБРАБОТКУ ОБНОВЛЕНИЙ ГРУППЫ
+                else if (data.type === 'group_profile_update') {
+                    console.log('🔄 Group profile update received:', data.content);
+                    const groupEvent = new CustomEvent('groupProfileUpdate', { detail: data.content });
+                    document.dispatchEvent(groupEvent);
                 }
             } catch (error) {
                 console.error('❌ Error parsing profile WebSocket message:', error, event.data);
             }
         };
-
-        this.ws.onclose = () => {
-            console.warn(`⚠️ Profile WebSocket for chat ${chatId} disconnected. Reconnecting...`);
+    
+        this.ws.onclose = (event) => {
+            console.log(`🔴 Profile WebSocket closed for chat ${chatId}:`, event.code, event.reason);
             setTimeout(() => this.connectToProfile(chatId), this.reconnectInterval);
             this.reconnectInterval = Math.min(this.reconnectInterval * 2, 30000);
         };
-
+    
         this.ws.onerror = (error) => {
             console.error(`❌ Profile WebSocket error for chat ${chatId}:`, error);
         };
@@ -242,12 +260,8 @@ class ProfileWebSocketManager {
         this.messageListeners = this.messageListeners.filter(l => l !== listener);
     }
 }
-
-// Глобальные экземпляры
 export const statusSocket = new StatusSocket();
 export const profileWebSocket = new ProfileWebSocketManager();
 
-// Глобальные обработчики событий
 document.addEventListener('profileUpdated', ((e: CustomEvent<User | GroupProfile>) => {
-    console.log('🔄 Profile updated globally:', e.detail);
 }) as EventListener);

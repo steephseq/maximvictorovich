@@ -12,7 +12,6 @@ import (
 	"mess/redis"
 	"mess/services"
 	"net/http"
-	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -48,11 +47,16 @@ func OpenProfileHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("📊 Все онлайн пользователи: %v", allOnline)
 	}
 
-	profileRedis, err := getProfileFromRedis(profileRequest.ID)
-	if err == nil {
+	userIDAny := r.Context().Value(JWTModels.UserIDKey)
+	userID, ok := userIDAny.(uint)
+	if !ok {
+		services.ResponseFunc(w, http.StatusInternalServerError, "failed to get profile", nil)
+		return
+	}
+	profileRedis, err1 := getProfileFromRedis(profileRequest.ID, int(userID))
+	if err1 == nil {
 		log.Printf("OpenProfileHandler: successful get profile from redis")
 		for i, user := range profileRedis.Members {
-			log.Printf("🔵 Пользователь %d", user.ID)
 			exists, err := redis.RedisClient.SIsMember(redis.Ctx, "online:users", user.ID).Result()
 			log.Printf("🔵 Пользователь %v", exists)
 			if err != nil {
@@ -60,54 +64,57 @@ func OpenProfileHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if exists {
-				log.Printf("🔵 Пользователь %d онлайн", user.ID)
 				profileRedis.Members[i].IsOnline = true
 			} else {
-				log.Printf("🔵 Пользователь %d не онлайн", user.ID)
 				profileRedis.Members[i].IsOnline = false
 			}
 		}
 		services.ResponseFunc(w, http.StatusOK, "successful get profile", profileRedis)
-		for _, user := range profileRedis.Members {
-			log.Printf("🟢 Пользователь %d | Онлайн: %v", user.ID, user.IsOnline)
-		}
 		return
 	}
 
-	log.Printf("failed to get profile from redis,error:%v", err)
+	log.Printf("failed to get profile from redis,error:%v", err1)
 	var profile profileModels.Profile
 	if profileRequest.IsGroup {
 		profile, err = database.GetGroupProfile(chatsModels.Chat{ID: profileRequest.ID, Is_group: true})
-		profile.IsGroup = true
+		if err != nil {
+			log.Printf("failed to get group profile,error:%v", err)
+			services.ResponseFunc(w, http.StatusInternalServerError, "failed to get profile", nil)
+			return
+		}
 	} else {
-		profile, err = database.GetUserProfile(profileRequest.ID)
-		profile.IsGroup = false
-	}
-	if err != nil {
-		log.Printf("failed to get profile from db,error:%v", err)
-		services.ResponseFunc(w, http.StatusInternalServerError, "failed to get profile", nil)
-		return
+		userIDAnother, err := database.GetAnotherUserForProfile(profileRequest.ID, int(userID))
+		log.Printf("userIDAnother: %d", userIDAnother)
+		if err != nil {
+			log.Printf("failed to get another user for profile,error:%v", err)
+			services.ResponseFunc(w, http.StatusInternalServerError, "failed to get profile", nil)
+			return
+		}
+		profile, err = database.GetUserProfile(userIDAnother)
+		if err != nil {
+			log.Printf("failed to get user profile,error:%v", err)
+			services.ResponseFunc(w, http.StatusInternalServerError, "failed to get profile", nil)
+			return
+		}
 	}
 
+	profile.AvatarURL = services.GetAvatarURL(profile.AvatarURL)
 	for i, user := range profile.Members {
 		exists, err := redis.RedisClient.SIsMember(redis.Ctx, "online:users", user.ID).Result()
 		if err != nil {
 			services.ResponseFunc(w, http.StatusInternalServerError, "failed to get online users", nil)
 			return
 		}
+		url := services.GetAvatarURL(user.Avatar)
+		profile.Members[i].Avatar = url
 		if exists {
-			log.Printf("🔵 Пользователь %d онлайн", user.ID)
 			profile.Members[i].IsOnline = true
 		} else {
-			log.Printf("🔵 Пользователь %d офлайн", user.ID)
 			profile.Members[i].IsOnline = false
 		}
 	}
-	if err := saveProfileToRedis(profile, profileRequest.ID); err != nil {
+	if err := saveProfileToRedis(profile, profileRequest.ID, int(userID)); err != nil {
 		log.Printf("failed to save profile to redis,error:%v", err)
-	}
-	for _, user := range profile.Members {
-		log.Printf("🟢 Пользователь %d | Онлайн: %v", user.ID, user.IsOnline)
 	}
 	services.ResponseFunc(w, http.StatusOK, "successful", profile)
 }
@@ -163,33 +170,41 @@ func addViewer(chatID, userID int, ctx context.Context) error {
 	})
 	viewersMap.Store(userID, true)
 
+	log.Printf("👀 addViewer: chatID=%d, userID=%d, wasEmpty=%v", chatID, userID, wasEmpty)
+
 	if wasEmpty {
-		log.Printf("no viewers for chat %d", chatID)
+		log.Printf("🟢 ПЕРВЫЙ зритель для чата %d, подписываемся на статусы", chatID)
 
 		chat, err := database.GetChatByID(chatID)
 		if err != nil {
-			log.Printf("failed to get chat by id,error:%v", err)
+			log.Printf("❌ failed to get chat by id: %v", err)
 			return err
 		}
+
+		log.Printf("📋 Информация о чате: ID=%d, IsGroup=%v, OtherUserID=%d",
+			chat.ID, chat.Is_group, chat.OtherUserID)
+
 		if chat.Is_group {
 			profile, err := database.GetGroupProfile(chat)
 			if err != nil {
-				log.Printf("failed to get profile group,err:%v", err)
+				log.Printf("❌ failed to get group profile: %v", err)
 				return err
 			}
-			var userIDs []string
-			for _, user := range profile.Members {
-				userIDs = append(userIDs, strconv.Itoa(int(user.ID)))
-			}
-			ProfileChannelSubscribe(ctx, "online:status", chatID, "profile:update", userIDs, profile, &activeSubs)
+			ProfileChannelSubscribe(ctx, "online:status", chatID, "profile:update", profile, &activeSubs)
 		} else {
 			profile, err := database.GetUserProfile(chat.OtherUserID)
 			if err != nil {
-				log.Printf("failed to get user profile,error:%v", err)
+				log.Printf("❌ failed to get user profile: %v", err)
 				return err
 			}
-			userIDs := []string{strconv.Itoa(chat.OtherUserID)}
-			ProfileChannelSubscribe(ctx, "online:status", chatID, "profile:update", userIDs, profile, &activeSubs)
+			ProfileChannelSubscribe(ctx, "online:status", chatID, "profile:update", profile, &activeSubs)
+		}
+	} else {
+		log.Printf("🔵 НЕ первый зритель для чата %d, подписка уже должна быть", chatID)
+		if _, exists := activeSubs.Load(chatID); exists {
+			log.Printf("✅ Подписка для чата %d АКТИВНА", chatID)
+		} else {
+			log.Printf("❌ Подписка для чата %d ОТСУТСТВУЕТ (ЭТО ПРОБЛЕМА!)", chatID)
 		}
 	}
 	return nil
@@ -223,76 +238,106 @@ func MyProfileHandler(w http.ResponseWriter, r *http.Request) {
 		services.ResponseFunc(w, http.StatusInternalServerError, "failed get user profile", nil)
 		return
 	}
+
+	url := services.GetAvatarURL(u.AvatarURL)
+	log.Println("MyProfileHandler:", url)
+	u.AvatarURL = url
 	services.ResponseFunc(w, http.StatusOK, "successful get profile", u)
 }
 
-func ProfileChannelSubscribe(ctx context.Context, key string, chatID int, typeMessage string, userIDs []string, profile profileModels.Profile, activeSubs *sync.Map) {
-	log.Printf("🔔 ProfileChannelSubscribe: chatID=%d, key=%s, userIDs=%v", chatID, key, userIDs)
+func ProfileChannelSubscribe(ctx context.Context, key string, chatID int, typeMessage string, profile profileModels.Profile, activeSubs *sync.Map) {
+	log.Printf("🔔 ProfileChannelSubscribe: chatID=%d, key=%s, membersCount=%d",
+		chatID, key, len(profile.Members))
+
 	if _, loaded := activeSubs.Load(chatID); loaded {
+		log.Printf("⚠️ Уже подписаны на чат %d, пропускаем дублирование", chatID)
 		return
 	}
+
+	log.Printf("🟡 СОЗДАЕМ ПОДПИСКУ для чата %d", chatID)
+
 	go func() {
 		subCtx, cancel := context.WithCancel(ctx)
 		activeSubs.Store(chatID, cancel)
-		pubSub := redis.RedisClient.Subscribe(redis.Ctx, fmt.Sprintf(key+":%d", chatID))
+		channelName := fmt.Sprintf(key+":%d", chatID)
+		pubSub := redis.RedisClient.Subscribe(redis.Ctx, channelName)
+
+		log.Printf("📡 Подписались на Redis канал: %s", channelName)
 
 		defer func() {
 			pubSub.Close()
 			activeSubs.Delete(chatID)
+			log.Printf("📡 Отписались от Redis канала: %s", channelName)
 		}()
+
 		for {
 			var profileCopy profileModels.Profile
 			select {
 			case <-subCtx.Done():
+				log.Printf("📡 Контекст отменен для чата %d", chatID)
 				return
-			case _, ok := <-pubSub.Channel():
+			case msg, ok := <-pubSub.Channel():
 				if !ok {
+					log.Printf("📡 Канал закрыт для чата %d", chatID)
 					return
 				}
-				exists, err := redis.RedisClient.SInter(redis.Ctx, append([]string{"online:users"}, userIDs...)...).Result()
-				if err != nil {
-					log.Printf("failed to check is user online /responseProfile\nerror:%v", err)
-					continue
-				}
+				log.Printf("📨 Получено сообщение из Redis для чата %d: %s", chatID, msg.Payload)
+
 				profileCopy = profile
 				if profileCopy.IsGroup {
 					for i := range profileCopy.Members {
-						userID := strconv.Itoa(int(profileCopy.Members[i].ID))
-						if slices.Contains(exists, userID) {
-							profileCopy.Members[i].IsOnline = true
-						} else {
-							profileCopy.Members[i].IsOnline = false
+						exists, err := redis.RedisClient.SIsMember(redis.Ctx, "online:users", strconv.Itoa(int(profileCopy.Members[i].ID))).Result()
+						if err != nil {
+							log.Printf("❌ Ошибка проверки онлайн статусов: %v", err)
+							continue
 						}
+						profileCopy.Members[i].IsOnline = exists
 					}
 				} else {
-					profileCopy.IsOnline = slices.Contains(exists, userIDs[0])
+					if len(profileCopy.Members) > 0 {
+						exists, err := redis.RedisClient.SIsMember(redis.Ctx, "online:users", strconv.Itoa(int(profileCopy.Members[0].ID))).Result()
+						if err != nil {
+							log.Printf("❌ Ошибка проверки онлайн статусов: %v", err)
+
+						} else {
+							profileCopy.IsOnline = exists
+						}
+					} else {
+						log.Println("❌ Ошибка проверки онлайн статусов: профиль без участников")
+					}
+				}
+				profileJSON, err := json.Marshal(profileCopy)
+				if err != nil {
+					log.Printf("❌ Failed to marshal profile to JSON: %v", err)
+					return
 				}
 				message := chatsModels.Message{
-					Type:      typeMessage, // ← фронт поймет что это не текст
+					Type:      typeMessage,
 					ChatId:    chatID,
-					Content:   profileCopy,
+					Content:   string(profileJSON),
 					CreatedAt: time.Now(),
 				}
+				log.Printf("📤 Отправляем обновление профиля для чата %d", chatID)
 				services.BroadcastToRoom(message, chatID)
 			}
 		}
 	}()
 }
 
-func saveProfileToRedis(profile profileModels.Profile, chatID int) error {
+func saveProfileToRedis(profile profileModels.Profile, chatID int, userID int) error {
 	profileJSON, err := json.Marshal(profile)
 	if err != nil {
 		return err
 	}
-	if err := redis.RedisClient.Set(redis.Ctx, fmt.Sprintf("profile:%d", chatID), profileJSON, 1*time.Minute).Err(); err != nil {
+	if err := redis.RedisClient.Set(redis.Ctx, fmt.Sprintf("profile:%d:viewer:%d", chatID, userID), profileJSON, 1*time.Minute).Err(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func getProfileFromRedis(chatID int) (profileModels.Profile, error) {
+func getProfileFromRedis(chatID int, userID int) (profileModels.Profile, error) {
 	var profile profileModels.Profile
-	profileJSON, err := redis.RedisClient.Get(redis.Ctx, fmt.Sprintf("profile:%d", chatID)).Result()
+	profileJSON, err := redis.RedisClient.Get(redis.Ctx, fmt.Sprintf("profile:%d:viewer:%d", chatID, userID)).Result()
 	if err != nil {
 		return profile, err
 	}

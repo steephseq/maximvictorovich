@@ -5,7 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Messenger</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/home.css">
+        <!-- Shared Base -->
+        <link rel="stylesheet" href="css/shared/base.css">
+        <link rel="stylesheet" href="css/shared/animations.css">
+        
+        <!-- Shared Components -->
+        <link rel="stylesheet" href="css/shared/buttons.css">
+        <link rel="stylesheet" href="css/shared/forms.css">
+        
+        <!-- Modals (только нужные) -->
+        <link rel="stylesheet" href="css/shared/modals/base.css">
+        <link rel="stylesheet" href="css/shared/modals/profile.css">
+        <link rel="stylesheet" href="css/shared/modals/group.css">
+        <link rel="stylesheet" href="css/shared/modals/search.css">
+        <link rel="stylesheet" href="css/shared/modals/media.css">
+        
+        <!-- Components -->
+        <link rel="stylesheet" href="css/components/typography.css">
+        <link rel="stylesheet" href="css/components/sidebar.css">
+        <link rel="stylesheet" href="css/components/welcome.css">
+        <link rel="stylesheet" href="css/components/message-input.css">
+        <link rel="stylesheet" href="css/components/states.css">
+        <link rel="stylesheet" href="css/components/utils.css">
+        <link rel="stylesheet" href="css/components/online-status.css">
+        <link rel="stylesheet" href="css/components/chat.css">
+        <link rel="stylesheet" href="css/components/media.css">
+        
+        <!-- Layout -->
+        <link rel="stylesheet" href="css/layout.css">
+        
+        <!-- Page Specific -->
+        <link rel="stylesheet" href="css/pages/home.css">
+        
+        <!-- Responsive -->
+        <link rel="stylesheet" href="css/responsive.css">
+    
 </head>
 <body>
     <div id="app">
@@ -166,81 +200,88 @@
     </div>
 </div>
     <!-- User Profile Modal -->
-    <div id="profileModal" class="modal hidden">
-        <div class="modal-overlay"></div>
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="profileModalTitle" class="modal-title">Мой профиль</h3>
-                <button class="modal-close" id="closeProfileModal">
-                    <i class="fas fa-times"></i>
-                </button>
+<div id="profileModal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="profileModalTitle" class="modal-title">Мой профиль</h3>
+            <button class="modal-close" id="closeProfileModal">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="modal-body">
+            <div class="profile-avatar-section">
+                <div class="avatar-container">
+                    <img id="profileModalAvatar" src="https://via.placeholder.com/120" alt="User Avatar" class="profile-avatar">
+                    <!-- Добавьте кнопку загрузки аватара -->
+                    <div class="avatar-upload-actions">
+                        <input type="file" id="profileAvatarInput" accept="image/*" style="display: none;">
+                        <button id="uploadProfileAvatarBtn" class="btn-secondary btn-small">
+                            <i class="fas fa-camera"></i> Сменить аватар
+                        </button>
+                    </div>
+                </div>
             </div>
-            
-            <div class="modal-body">
-                <div class="profile-avatar-section">
-                    <div class="avatar-container">
-                        <img id="profileModalAvatar" src="https://via.placeholder.com/120" alt="User Avatar" class="profile-avatar">
+
+            <div id="profileView">
+                <div class="profile-info-section">
+                    <div class="info-item">
+                        <label>Имя</label>
+                        <div id="profileDisplayName" class="profile-input" style="background: rgba(45, 27, 105, 0.6); color: #f8fafc; padding: 0.75rem 1rem; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.2);">Загрузка...</div>
+                    </div>
+                    
+                    <div class="info-item">
+                        <label>Юзернейм</label>
+                        <div id="profileDisplayUsername" class="profile-input" style="background: rgba(45, 27, 105, 0.6); color: #f8fafc; padding: 0.75rem 1rem; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.2);">@user</div>
+                    </div>
+                    
+                    <div class="info-item">
+                        <label>О себе</label>
+                        <div id="profileDisplayBio" class="profile-textarea" style="background: rgba(45, 27, 105, 0.6); color: #f8fafc; padding: 0.75rem 1rem; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.2); min-height: 60px;">Нет описания</div>
                     </div>
                 </div>
 
-                <div id="profileView">
-                    <div class="profile-info-section">
-                        <div class="info-item">
-                            <label>Имя</label>
-                            <div id="profileDisplayName" class="profile-input" style="background: rgba(45, 27, 105, 0.6); color: #f8fafc; padding: 0.75rem 1rem; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.2);">Загрузка...</div>
-                        </div>
-                        
-                        <div class="info-item">
-                            <label>Юзернейм</label>
-                            <div id="profileDisplayUsername" class="profile-input" style="background: rgba(45, 27, 105, 0.6); color: #f8fafc; padding: 0.75rem 1rem; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.2);">@user</div>
-                        </div>
-                        
-                        <div class="info-item">
-                            <label>О себе</label>
-                            <div id="profileDisplayBio" class="profile-textarea" style="background: rgba(45, 27, 105, 0.6); color: #f8fafc; padding: 0.75rem 1rem; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.2); min-height: 60px;">Нет описания</div>
-                        </div>
-                    </div>
+                <div class="profile-actions">
+                    <button id="editProfileBtn" class="btn-primary">
+                        <i class="fas fa-edit"></i> Редактировать профиль
+                    </button>
+                    <button id="cancelProfileBtn" class="btn-secondary">
+                        <i class="fas fa-times"></i> Закрыть
+                    </button>
+                </div>
+            </div>
 
-                    <div class="profile-actions">
-                        <button id="editProfileBtn" class="btn-primary">
-                            <i class="fas fa-edit"></i> Редактировать профиль
-                        </button>
-                        <button id="cancelProfileBtn" class="btn-secondary">
-                            <i class="fas fa-times"></i> Закрыть
-                        </button>
+            <div id="profileEditForm" class="hidden">
+                <div class="profile-info-section">
+                    <div class="info-item">
+                        <label>Имя</label>
+                        <input type="text" id="profileName" class="profile-input" placeholder="Ваше имя">
+                    </div>
+                    
+                    <div class="info-item">
+                        <label>Юзернейм</label>
+                        <input type="text" id="profileUsername" class="profile-input" placeholder="@username">
+                    </div>
+                    
+                    <div class="info-item">
+                        <label>О себе</label>
+                        <textarea id="profileBio" class="profile-textarea" placeholder="Расскажите о себе..."></textarea>
                     </div>
                 </div>
 
-                <div id="profileEditForm" class="hidden">
-                    <div class="profile-info-section">
-                        <div class="info-item">
-                            <label>Имя</label>
-                            <input type="text" id="profileName" class="profile-input" placeholder="Ваше имя">
-                        </div>
-                        
-                        <div class="info-item">
-                            <label>Юзернейм</label>
-                            <input type="text" id="profileUsername" class="profile-input" placeholder="@username">
-                        </div>
-                        
-                        <div class="info-item">
-                            <label>О себе</label>
-                            <textarea id="profileBio" class="profile-textarea" placeholder="Расскажите о себе..."></textarea>
-                        </div>
-                    </div>
-
-                    <div class="profile-actions">
-                        <button id="saveProfileBtn" class="btn-primary">
-                            <i class="fas fa-save"></i> Сохранить
-                        </button>
-                        <button id="cancelEditProfileBtn" class="btn-secondary">
-                            <i class="fas fa-times"></i> Отмена
-                        </button>
-                    </div>
+                <div class="profile-actions">
+                    <button id="saveProfileBtn" class="btn-primary">
+                        <i class="fas fa-save"></i> Сохранить
+                    </button>
+                    <button id="cancelEditProfileBtn" class="btn-secondary">
+                        <i class="fas fa-times"></i> Отмена
+                    </button>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
     <!-- User Actions Modal -->
     <div id="userActionsModal" class="modal hidden">
@@ -260,55 +301,67 @@
         </div>
     </div>
 
-    <!-- Group Creation Modal -->
-    <div id="groupModal" class="group-modal-overlay hidden">
-        <div class="group-modal">
-            <div class="group-modal-header">
-                <div class="group-header-content">
-                    <i class="fas fa-users group-header-icon"></i>
-                    <h3>Создать группу</h3>
+<!-- Group Profile Modal -->
+<div id="groupProfileModal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content group-profile-modal">
+        <div class="modal-header">
+            <h3 id="groupProfileModalTitle" class="modal-title">Профиль группы</h3>
+            <button class="modal-close" id="closeGroupProfileModal">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="modal-body">
+            <div class="profile-avatar-section">
+                <div class="avatar-container">
+                    <img id="groupProfileModalAvatar" src="https://via.placeholder.com/120" alt="Group Avatar" class="profile-avatar">
+                    <!-- Добавьте кнопку загрузки аватара для группы -->
+                    <div class="avatar-upload-actions">
+                        <input type="file" id="groupAvatarInput" accept="image/*" style="display: none;">
+                        <button id="uploadGroupAvatarBtn" class="btn-secondary btn-small" style="display: none;">
+                            <i class="fas fa-camera"></i> Сменить аватар
+                        </button>
+                    </div>
                 </div>
-                <button class="group-close-btn">
-                    <i class="fas fa-times"></i>
+            </div>
+
+            <div class="profile-info-section">
+                <div class="info-item">
+                    <label>Название группы</label>
+                    <input type="text" id="groupProfileName" class="profile-input" placeholder="Название группы" readonly>
+                </div>
+                
+                <div class="info-item">
+                    <label>Описание</label>
+                    <textarea id="groupProfileBio" class="profile-textarea" placeholder="Описание группы" readonly></textarea>
+                </div>
+            </div>
+
+            <div class="members-section">
+                <h4>Участники (<span id="groupMemberCount">0</span>)</h4>
+                <div class="members-list" id="groupMembersList">
+                    <div class="text-gray-500 text-center p-4">Нет участников</div>
+                </div>
+            </div>
+
+            <div class="profile-actions">
+                <button id="editGroupProfileBtn" class="btn-primary" style="display: none;">
+                    <i class="fas fa-edit"></i> Редактировать профиль
                 </button>
-            </div>
-            
-            <div class="group-form">
-                <div class="form-group">
-                    <label for="groupName">Название группы</label>
-                    <input type="text" id="groupName" 
-                           placeholder="Введите название группы..." 
-                           class="group-input">
-                </div>
-
-                <div class="form-group">
-                    <label for="userSearch">Добавить участников</label>
-                    <div class="user-search-box">
-                        <i class="fas fa-search user-search-icon"></i>
-                        <input type="text" id="userSearch" 
-                               placeholder="Поиск пользователей..." 
-                               class="user-search-input">
-                    </div>
-                </div>
-
-                <div class="selected-users" id="selectedUsers">
-                    <div class="selected-users-empty">
-                        <i class="fas fa-user-plus"></i>
-                        <span>Пока нет выбранных пользователей</span>
-                    </div>
-                </div>
-
-                <div class="users-search-results hidden" id="usersSearchResults"></div>
-            </div>
-
-            <div class="group-modal-footer">
-                <button class="btn-secondary group-cancel-btn">Отмена</button>
-                <button class="btn-primary group-create-btn" disabled>
-                    <i class="fas fa-plus"></i> Создать группу
+                <button id="addGroupMemberBtn" class="btn-secondary" style="display: none;">
+                    <i class="fas fa-user-plus"></i> Добавить участника
+                </button>
+                <button id="leaveGroupBtn" class="btn-danger">
+                    <i class="fas fa-sign-out-alt"></i> Покинуть группу
+                </button>
+                <button id="cancelGroupProfileBtn" class="btn-secondary">
+                    <i class="fas fa-times"></i> Закрыть
                 </button>
             </div>
         </div>
     </div>
+</div>
 
     <!-- Video Player Modal -->
     <div class="video-modal">
@@ -341,6 +394,77 @@
     <div id="connectionStatus" class="connection-status connection-connected hidden">
         <i class="fas fa-wifi"></i> Подключено
     </div>
+    <!-- Group Creation Modal -->
+<div id="groupModal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content group-creation-modal">
+        <div class="modal-header">
+            <h3 class="modal-title">Создать новую группу</h3>
+            <button class="modal-close group-close-btn">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="groupName">Название группы</label>
+                <input type="text" id="groupName" class="form-input" placeholder="Введите название группы">
+            </div>
+            
+            <div class="form-group">
+                <label for="userSearch">Добавить участников</label>
+                <div class="search-wrapper">
+                    <input type="text" id="userSearch" class="form-input" placeholder="Поиск пользователей...">
+                    <div id="usersSearchResults" class="search-results hidden"></div>
+                </div>
+            </div>
+            
+            <div class="selected-users-section">
+                <label>Выбранные участники:</label>
+                <div id="selectedUsers" class="selected-users">
+                    <div class="selected-users-empty">
+                        <i class="fas fa-user-plus"></i>
+                        <span>Пока нет выбранных пользователей</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-actions">
+                <button class="btn-secondary group-cancel-btn">
+                    <i class="fas fa-times"></i> Отмена
+                </button>
+                <button class="btn-primary group-create-btn" disabled>
+                    <i class="fas fa-plus"></i> Создать группу
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Image Viewer Modal -->
+<div id="imageViewerModal" class="image-viewer-modal hidden">
+    <div class="image-viewer-overlay"></div>
+    <div class="image-viewer-content">
+        <button class="image-viewer-close">
+            <i class="fas fa-times"></i>
+        </button>
+        <div class="image-viewer-container">
+            <img id="viewerImage" src="" alt="Просмотр изображения" class="viewer-image">
+        </div>
+        <div class="image-viewer-controls">
+            <button class="viewer-control-btn zoom-in-btn" title="Увеличить">
+                <i class="fas fa-search-plus"></i>
+            </button>
+            <button class="viewer-control-btn zoom-out-btn" title="Уменьшить">
+                <i class="fas fa-search-minus"></i>
+            </button>
+            <button class="viewer-control-btn reset-zoom-btn" title="Сбросить масштаб">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
 
     <!-- Scripts -->
     <script type="module" src="dist/auth.js"></script>

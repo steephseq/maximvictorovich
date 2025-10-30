@@ -1,0 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap&subset=cyrillic');
+
+* {
+    font-family: 'Montserrat', system-ui, sans-serif;
+    font-weight: 500;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===== TYPOGRAPHY COMPONENTS ===== */
+.welcome-title {
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+}
+
+.chat-header-name,
+.user-name,
+.profile-name {
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.chat-header-name {
+    font-weight: 700;
+    color: #f8fafc;
+    font-size: 1.3rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.chat-name {
+    font-weight: 600;
+    color: #f8fafc;
+    margin-bottom: 0.3rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 1.1rem;
+}
+
+.empty-chat p {
+    font-weight: 800;
+}
+
+.start-chat-btn,
+.new-chat-btn,
+.send-btn {
+    font-weight: 600;
+}
+
+.chat-time,
+.chat-header-status,
+.user-status,
+.message-time {
+    font-weight: 500;
+}
+
+.message-content {
+    font-size: 1.05rem;
+    line-height: 1.4;
+    word-wrap: break-word;
+    margin-bottom: 0.5rem;
+    font-weight: 400 !important;
+    letter-spacing: -0.01em;
+}

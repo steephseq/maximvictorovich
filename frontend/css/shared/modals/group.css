@@ -1,0 +1,40 @@
+/* Members Section */
+.members-section {
+    margin-bottom: 1.5rem;
+}
+
+.members-list {
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(45, 27, 105, 0.6);
+}
+
+.member-item {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.1);
+    transition: all 0.3s ease;
+}
+
+.member-item:hover {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(124, 58, 237, 0.1) 100%);
+}
+
+.member-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #8b5cf6;
+}
+
+/* Group Creation Modal */
+.group-modal {
+    background: linear-gradient(135deg, #2d1b69 0%, #1a1033 100%);
+    border-radius: 24px;
+    padding: 2rem;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    border: 1px solid rgba(139, 92, 246, 0.2);
+}

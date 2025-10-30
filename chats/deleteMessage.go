@@ -31,7 +31,7 @@ func DeleteMessageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if !canDelete {
 
-		authorID, err := database.WhoAuthorMessage(action.MessageID, action.ChatID)
+		authorID, err := database.WhoAuthorMessage(action.MessageID)
 		if err != nil {
 			log.Printf("DeleteUserHandler: failed to check who is author message,error:%v", err)
 			services.ResponseFunc(w, http.StatusInternalServerError, "failed to get authorID", nil)

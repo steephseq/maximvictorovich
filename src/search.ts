@@ -200,6 +200,8 @@ export class SearchManager {
     }
 
     private renderUsersResults(users: User[], query: string): string {
+        const currentUserId = this.homeManager.currentUser?.id;
+        
         return `
             <div class="search-results-section">
                 <div class="search-section-header">
@@ -208,21 +210,29 @@ export class SearchManager {
                     <span class="search-count">${users.length}</span>
                 </div>
                 <div class="search-results-list">
-                    ${users.map(user => `
-                        <div class="search-result-item user-result" data-user-id="${user.id}">
-                            <div class="result-avatar">
-                                <img src="${user.avatar_url || user.avatar || user.url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=40&h=40&fit=crop&crop=face'}" 
-                                    alt="${user.name}">
+                    ${users.map(user => {
+                        const isCurrentUser = user.id === currentUserId;
+                        const actionText = isCurrentUser ? "Открыть профиль" : "Написать сообщение";
+                        const actionIcon = isCurrentUser ? "fa-user" : "fa-comment";
+                        
+                        return `
+                            <div class="search-result-item user-result" data-user-id="${user.id}" data-is-self="${isCurrentUser}">
+                                <div class="result-avatar">
+                                    <img src="${user.avatar_url || user.avatar || user.url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=40&h=40&fit=crop&crop=face'}" 
+                                        alt="${user.name}">
+                                    ${isCurrentUser ? '<div class="self-badge"><i class="fas fa-star"></i></div>' : ''}
+                                </div>
+                                <div class="result-info">
+                                    <div class="result-name">${this.highlightText(user.name, query)}</div>
+                                    <div class="result-username">@${this.escapeHtml(user.username)}</div>
+                                    ${isCurrentUser ? '<div class="result-self-label">Это вы</div>' : ''}
+                                </div>
+                                <button class="result-action-btn" title="${actionText}">
+                                    <i class="fas ${actionIcon}"></i>
+                                </button>
                             </div>
-                            <div class="result-info">
-                                <div class="result-name">${this.highlightText(user.name, query)}</div>
-                                <div class="result-username">@${this.escapeHtml(user.username)}</div>
-                            </div>
-                            <button class="result-action-btn" title="Написать сообщение">
-                                <i class="fas fa-comment"></i>
-                            </button>
-                        </div>
-                    `).join('')}
+                        `;
+                    }).join('')}
                 </div>
             </div>
         `;
@@ -283,10 +293,21 @@ export class SearchManager {
         document.querySelectorAll('.user-result').forEach(item => {
             item.addEventListener('click', () => {
                 const userId = parseInt(item.getAttribute('data-user-id')!);
-                this.startChatWithUser(userId);
+                const isSelf = item.getAttribute('data-is-self') === 'true';
+                
+                if (isSelf) {
+                    // Открываем профиль текущего пользователя
+                    this.closeSearch();
+                    if (this.homeManager.profileManager) {
+                        this.homeManager.profileManager.openMyProfile();
+                    }
+                } else {
+                    // Начинаем чат с другим пользователем
+                    this.startChatWithUser(userId);
+                }
             });
         });
-
+    
         // Обработчики для чатов
         document.querySelectorAll('.chat-result').forEach(item => {
             item.addEventListener('click', () => {
@@ -297,27 +318,39 @@ export class SearchManager {
     }
 
     private async startChatWithUser(userId: number): Promise<void> {
-    try {
-        console.log('👤 Starting chat with user ID:', userId);
-        
-        // Создаем/получаем чат через create121Chat
-        const chat = await this.api.create121Chat(userId);
-        
-        console.log('✅ Chat created/retrieved:', chat);
-        
-        this.closeSearch();
-        
-        // ВАЖНО: Добавляем чат в список чатов HomeManager
-        this.homeManager.addNewChat(chat);
-        
-        // И открываем этот чат
-        this.homeManager.selectChat(chat);
-        
-    } catch (error) {
-        console.error('Failed to create/access chat:', error);
-        this.showError('Не удалось открыть чат');
+        try {
+            console.log('👤 Starting chat with user ID:', userId);
+            
+            // Проверяем, не пытаемся ли начать чат с самим собой
+            if (this.homeManager.currentUser && userId === this.homeManager.currentUser.id) {
+                console.log('❌ Cannot start chat with yourself');
+                this.closeSearch();
+                
+                // Открываем свой профиль вместо чата
+                if (this.homeManager.profileManager) {
+                    this.homeManager.profileManager.openMyProfile();
+                }
+                return;
+            }
+            
+            // Создаем/получаем чат через create121Chat
+            const chat = await this.api.create121Chat(userId);
+            
+            console.log('✅ Chat created/retrieved:', chat);
+            
+            this.closeSearch();
+            
+            // ВАЖНО: Добавляем чат в список чатов HomeManager
+            this.homeManager.addNewChat(chat);
+            
+            // И открываем этот чат
+            this.homeManager.selectChat(chat);
+            
+        } catch (error) {
+            console.error('Failed to create/access chat:', error);
+            this.showError('Не удалось открыть чат');
+        }
     }
-}
 
     private async openChat(chatId: number): Promise<void> {
         this.closeSearch();
@@ -371,11 +404,6 @@ export class SearchManager {
             modal.classList.remove('hidden');
             searchInput.focus();
             this.isOpen = true;
-            
-            // Добавляем класс для анимации
-            setTimeout(() => {
-                modal.classList.add('search-modal-open');
-            }, 10);
         }
     }
 
@@ -384,14 +412,10 @@ export class SearchManager {
         const searchInput = document.getElementById('globalSearchInput') as HTMLInputElement;
         
         if (modal && searchInput) {
-            modal.classList.remove('search-modal-open');
-            
-            setTimeout(() => {
-                modal.classList.add('hidden');
-                searchInput.value = '';
-                this.clearResults();
-                this.isOpen = false;
-            }, 200);
+            modal.classList.add('hidden');
+            searchInput.value = '';
+            this.clearResults();
+            this.isOpen = false;
         }
     }
 

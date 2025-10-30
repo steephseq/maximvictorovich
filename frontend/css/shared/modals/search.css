@@ -1,0 +1,9 @@
+/* Search Modal */
+.search-modal {
+    background: linear-gradient(135deg, #2d1b69 0%, #1a1033 100%);
+    border-radius: 24px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    border: 1px solid rgba(139, 92, 246, 0.2);
+}

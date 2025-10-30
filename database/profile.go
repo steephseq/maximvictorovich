@@ -18,9 +18,9 @@ func GetUserProfile(uID int) (profileModels.Profile, error) {
 	u.bio,
 	a.url
 	FROM users u
-	LEFT JOIN avatars a ON a.owner_id=u.id
+	JOIN avatars a ON a.owner_id=u.id
 	WHERE u.id=$1 AND a.is_current=true
-			`
+	`
 	var profile profileModels.Profile
 	err := DB.Get(&profile, query, uID)
 	if err != nil {
@@ -30,7 +30,18 @@ func GetUserProfile(uID int) (profileModels.Profile, error) {
 			return profile, nil
 		}
 	}
+	profile.Members = append(profile.Members, usersModels.User{ID: uint(profile.ID)})
 	return profile, err
+}
+
+func UserLastSeen(uID int) (string, error) {
+	query := `SELECT
+		last_seen
+	FROM users 
+	WHERE id=$1`
+	var lastSeen string
+	err := DB.QueryRow(query, uID).Scan(&lastSeen)
+	return lastSeen, err
 }
 
 func GetMyProfileHP(uid int) (profileModels.Profile, error) {
@@ -55,7 +66,7 @@ func GetGroupProfile(chat chatsModels.Chat) (profileModels.Profile, error) {
 		c.bio,
 		a.url
 		FROM chats c
-		LEFT JOIN avatars a ON a.owner_id=c.id
+		JOIN avatars a ON a.owner_id=c.id
 		WHERE c.id=$1 AND a.is_current=true
 		`
 	var gp profileModels.Profile
@@ -73,7 +84,7 @@ func GetGroupProfile(chat chatsModels.Chat) (profileModels.Profile, error) {
 		FROM chats c
 		JOIN chats_users cu ON cu.chat_id=c.id
 		JOIN users u ON u.id=cu.user_id
-		LEFT JOIN avatars a ON a.owner_id=u.id
+		JOIN avatars a ON a.owner_id=u.id AND a.is_group=false
 		LEFT JOIN chats_roles cr ON cr.user_id=u.id AND cr.chat_id=c.id
 		WHERE c.id=$1 and a.is_current=true
 		ORDER BY u.id
@@ -140,4 +151,18 @@ func SetXInfo(parameter profileModels.NewProfileParameter, column string) error 
 		return err
 	}
 	return nil
+}
+
+func GetGroupActions(userID int, chatID int) ([]string, error) {
+	query := `SELECT
+		cr.can_delete_users,
+		cr.can_change_bio,
+		cr.can_change_name,
+		cr.can_change_avatar,
+		cr.can_manage_roles
+		FROM chats_roles cr
+		WHERE cr.user_id=$1 AND cr.chat_id=$2`
+	var actions []string
+	err := DB.Select(&actions, query, userID, chatID)
+	return actions, err
 }

@@ -10,7 +10,7 @@ import type {
 } from './types.js';
 
 export class ProfileAPI {
-    private baseURL = 'https://localhost:8080';
+    private baseURL = 'https://193.47.60.194:8080';
 
     private getAuthHeaders(): { [key: string]: string } {
         const token = localStorage.getItem('token');
@@ -39,12 +39,97 @@ export class ProfileAPI {
         }
     }
 
+    async updateProfile(ownerId: number, column: string, value: string, isGroup: boolean = false): Promise<any> {
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+    
+        let endpoint = '';
+        switch (column) {
+            case 'name':
+                endpoint = '/setName';
+                break;
+            case 'username':
+                endpoint = '/setUserName';
+                break;
+            case 'bio':
+                endpoint = '/setBio';
+                break;
+            default:
+                throw new Error(`Unknown column: ${column}`);
+        }
+    
+        // ПРАВИЛЬНЫЙ payload согласно вашему бекенду
+        const payload = {
+            id: ownerId,                    // ID владельца профиля
+            is_group: isGroup,              // false для пользователя
+            parameter: value,               // новое значение
+            column: column,                 // имя поля
+            action: `can_change_${column}`  // действие для проверки прав
+        };
+    
+        console.log('📤 Updating profile:', { endpoint, payload });
+    
+        try {
+            const response = await fetch(`${this.baseURL}${endpoint}`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+    
+            if (!response.ok) {
+                let errorMessage = `HTTP error! status: ${response.status}`;
+                
+                try {
+                    const errorResult = await response.json();
+                    errorMessage = errorResult.message || errorMessage;
+                } catch (e) {
+                    // Если не удалось распарсить JSON, используем стандартное сообщение
+                }
+                
+                throw new Error(errorMessage);
+            }
+    
+            const result = await response.json();
+            
+            if (result.code !== 200) {
+                throw new Error(result.message || 'Unknown error');
+            }
+    
+            console.log('✅ Profile update successful:', result);
+            return result;
+    
+        } catch (error) {
+            console.error('❌ Profile update failed:', error);
+            throw error;
+        }
+    }
+
+    async updateName(userId: number, name: string): Promise<any> {
+        return this.updateProfile(userId, 'name', name, false);
+    }
+    
+    async updateUsername(userId: number, username: string): Promise<any> {
+        return this.updateProfile(userId, 'username', username, false);
+    }
+    
+    async updateBio(userId: number, bio: string): Promise<any> {
+        return this.updateProfile(userId, 'bio', bio, false);
+    }
+
     private async fetchWithAuth<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+        console.log('🔍 fetchWithAuth called for endpoint:', endpoint);
+        
         if (!authManager.isTokenValid()) {
             authManager.logout();
             throw new Error('Токен истек');
         }
-
+    
         try {
             const response = await fetch(`${this.baseURL}${endpoint}`, {
                 headers: {
@@ -54,28 +139,41 @@ export class ProfileAPI {
                 },
                 ...options
             });
-
+    
+            console.log('📡 Raw fetch response status:', response.status);
+            console.log('📡 Raw fetch response headers:', response.headers);
+    
             if (response.status === 401) {
                 authManager.logout();
                 throw new Error('Неавторизован');
             }
-
+    
             const result = await response.json();
+            console.log('📦 Parsed JSON result:', result);
             
             if (!response.ok) {
                 throw new Error(result.Message || result.message || `HTTP error! status: ${response.status}`);
             }
-
+    
+            // ПРОБЛЕМА МОЖЕТ БЫТЬ ЗДЕСЬ - проверяем структуру ответа
+            let finalData: T;
+            
             if (result.Data !== undefined) {
-                return result.Data as T;
+                console.log('📋 Using result.Data');
+                finalData = result.Data as T;
             } else if (result.data !== undefined) {
-                return result.data as T;
+                console.log('📋 Using result.data');
+                finalData = result.data as T;
             } else {
-                return result as T;
+                console.log('📋 Using result directly');
+                finalData = result as T;
             }
-
+            
+            console.log('🎯 Final data to return:', finalData);
+            return finalData;
+    
         } catch (error) {
-            console.error('Fetch error:', error);
+            console.error('❌ Fetch error:', error);
             throw error;
         }
     }
@@ -123,11 +221,30 @@ export class ProfileAPI {
     }
 
     async getProfile(): Promise<User> {
-        return this.fetchWithAuth<User>('/myProfileHP', {
-            method: 'GET'
-        });
+        try {
+            console.log('🔍 API: Starting getProfile request...');
+            console.log('🔐 Token:', localStorage.getItem('token')?.substring(0, 20) + '...');
+            
+            const response = await this.fetchWithAuth<User>('/myProfileHP', {
+                method: 'GET'
+            });
+            
+            console.log('📥 Raw profile response:', response);
+            console.log('👤 Profile ID:', response?.id);
+            console.log('👤 Profile data type:', typeof response?.id);
+            
+            // Проверяем структуру ответа
+            if (response && response.id === 0) {
+                console.warn('⚠️ WARNING: API returned user ID = 0');
+                console.warn('📋 Full response structure:', JSON.stringify(response, null, 2));
+            }
+            
+            return response;
+        } catch (error) {
+            console.error('❌ API getProfile error:', error);
+            throw error;
+        }
     }
-
     async fetchProfile(chatData: Chat): Promise<GroupProfile | User> {
         console.log("📡 Запрос профиля для:", chatData);
         const result = await this.fetchWithAuth<GroupProfile | User>('/profile', {
@@ -175,13 +292,41 @@ export class ProfileAPI {
     async getMessages(chatId: number): Promise<Message[]> {
         const numericChatId = Number(chatId);
         if (isNaN(numericChatId)) {
-            throw new Error(`Invalid chat ID: ${chatId}`);
+            throw new Error(`Неверный ID чата: ${chatId}`);
         }
 
-        return this.fetchWithAuth<Message[]>(`/messages?id=${numericChatId}`, {
-            method: 'GET'
-        });
+        console.log(`📨 Запрос сообщений для чата: ${numericChatId}`);
+
+        try {
+            const messages = await this.fetchWithAuth<Message[]>(`/messages?id=${numericChatId}`, {
+                method: 'GET'
+            });
+
+            console.log(`📨 Получено сообщений: ${messages?.length || 0}`);
+            
+            // 🔴 ЛОГИРОВАНИЕ СТРУКТУРЫ СООБЩЕНИЙ
+            if (messages && messages.length > 0) {
+                messages.forEach((msg, index) => {
+                    console.log(`📊 Сообщение ${index + 1}:`, {
+                        id: msg.id,
+                        type: msg.type,
+                        content_type: typeof msg.content,
+                        content_preview: String(msg.content).substring(0, 100),
+                        filename: msg.filename,
+                        is_ready: msg.is_ready
+                    });
+                });
+            }
+
+            return messages || [];
+
+        } catch (error) {
+            console.error('❌ Ошибка получения сообщений:', error);
+            throw error;
+        }
     }
+
+    
 
     async setBio(ownerId: number, isGroup: boolean, bio: string): Promise<void> {
         return this.setProfileParameter({
@@ -344,71 +489,91 @@ export class ProfileAPI {
     }
 
     async createEmptyMessage(chatId: number, messageType: string): Promise<number> {
-        const response = await this.fetchWithAuth<any>('/createEmptyMessage', {
-            method: 'POST',
-            body: JSON.stringify({
+        console.log(`📝 Создание пустого сообщения для чата ${chatId}, тип: ${messageType}`);
+    
+        try {
+            const response = await this.fetchWithAuth<any>('/createEmptyMessage', {
+                method: 'POST',
+                body: JSON.stringify({
+                    chat_id: chatId,
+                    type: messageType,
+                    is_ready: false
+                })
+            });
+    
+            console.log('📝 Ответ создания сообщения:', response);
+    
+            // Извлекаем ID сообщения
+            let messageId: number | undefined;
+    
+            if (typeof response === 'number') {
+                messageId = response;
+            } else if (response?.id) {
+                messageId = response.id;
+            } else if (response?.message_id) {
+                messageId = response.message_id;
+            } else if (response?.Data?.id) {
+                messageId = response.Data.id;
+            } else if (response?.data?.id) {
+                messageId = response.data.id;
+            }
+    
+            if (messageId === undefined) {
+                console.error('❌ ID сообщения не найден в ответе:', response);
+                throw new Error('Не удалось получить ID созданного сообщения');
+            }
+    
+            console.log(`✅ Создано сообщение с ID: ${messageId}`);
+            return messageId;
+    
+        } catch (error) {
+            console.error('❌ Ошибка создания пустого сообщения:', error);
+            throw error;
+        }
+    }
+
+    // В api.ts - исправленный метод updateMessageWithFile
+    async updateMessageWithFile(
+        messageId: number, 
+        fileUrl: string, 
+        fileType: string, 
+        userId: number, 
+        chatId: number,
+        duration?: number // 🔴 ДОБАВЛЯЕМ ДЛИТЕЛЬНОСТЬ
+    ): Promise<void> {
+        try {
+            console.log(`🔄 Обновление сообщения ${messageId} с файлом: ${fileUrl}, тип: ${fileType}, длительность: ${duration}с`);
+            
+            if (!userId) {
+                throw new Error('Пользователь не авторизован');
+            }
+    
+            // Создаем payload с поддержкой длительности
+            const payload: any = {
+                id: messageId,
+                content: fileUrl,
+                user_id: userId,
                 chat_id: chatId,
-                type: messageType,
-                is_ready: false
-            })
-        });
+                is_ready: true
+            };
 
-        if (typeof response === 'number') {
-            return response;
-        } else if (response?.id) {
-            return response.id;
-        } else if (response?.message_id) {
-            return response.message_id;
-        } else {
-            throw new Error('Message ID not found in response');
+            // Добавляем длительность для голосовых сообщений
+            if (fileType === 'voice' && duration) {
+                payload.duration = duration;
+            }
+    
+            await this.fetchWithAuth<void>('/editMessage', {
+                method: 'PATCH',
+                body: JSON.stringify(payload)
+            });
+            
+            console.log(`✅ Сообщение ${messageId} успешно обновлено`);
+        } catch (error) {
+            console.error(`❌ Ошибка обновления сообщения ${messageId}:`, error);
+            throw error;
         }
     }
 
-    async uploadFile(file: File, messageId?: number): Promise<string> {
-        const formData = new FormData();
-        
-        console.log(`📤 Исходный файл: name="${file.name}", type="${file.type}", size=${file.size}`);
-        
-        formData.append('file', file);
-        
-        if (messageId) {
-            formData.append('message_id', messageId.toString());
-            console.log(`🔗 Message ID: ${messageId}`);
-        }
-
-        const response = await fetch(`${this.baseURL}/uploadFile`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: formData
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Upload error:', errorText);
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        console.log('Upload response:', result);
-
-        if (result.Data?.filename) {
-            return result.Data.filename;
-        } else if (result.data?.filename) {
-            return result.data.filename;
-        } else if (result.filename) {
-            return result.filename;
-        } else if (result.Data?.url) {
-            return result.Data.url;
-        } else if (result.data?.url) {
-            return result.data.url;
-        } else if (result.url) {
-            return result.url;
-        } else {
-            throw new Error('File URL not found in response');
-        }
-    }
 
     validateFileSize(file: File, maxSizeMB: number = 1024): boolean {
         const maxSizeBytes = maxSizeMB * 1024 * 1024;
@@ -558,7 +723,12 @@ export class ProfileAPI {
         return normalizedChat;
     }
 
-    async setAvatar(formData: FormData): Promise<void> {
+    async setAvatar(file: File, ownerId: number, isGroup: boolean = false): Promise<string> {
+        const formData = new FormData();
+        formData.append('avatar', file);
+        formData.append('owner_id', ownerId.toString());
+        formData.append('is_group', isGroup.toString());
+    
         const response = await fetch(`${this.baseURL}/setAvatar`, {
             method: 'POST',
             headers: {
@@ -566,9 +736,25 @@ export class ProfileAPI {
             },
             body: formData
         });
-
+    
         if (!response.ok) {
-            throw new Error('Failed to set avatar');
+            const errorText = await response.text();
+            console.error('Avatar upload error:', errorText);
+            throw new Error(`Failed to upload avatar: ${response.status}`);
+        }
+    
+        const result = await response.json();
+        console.log('Avatar upload response:', result);
+    
+        // Бэкенд возвращает полный URL аватарки
+        if (result.Data?.url) {
+            return result.Data.url;
+        } else if (result.data?.url) {
+            return result.data.url;
+        } else if (result.url) {
+            return result.url;
+        } else {
+            throw new Error('Avatar URL not found in response');
         }
     }
 

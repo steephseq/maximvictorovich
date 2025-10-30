@@ -7,6 +7,7 @@ import { VideoPlayer } from './videoPlayer.js';
 import { FileUploader } from './fileUploader.js';
 import { ProfileManager } from './profileManager.js';
 import { MessageManager } from './messageManager.js';
+import { ImageViewer } from './imageViewer.js';
 
 class HomeManager {
     private api!: ProfileAPI;
@@ -16,7 +17,7 @@ class HomeManager {
     private chatOffset: number = 0;
     private searchManager!: SearchManager;
     private fileInput: HTMLInputElement | null = null;
-    
+    private imageViewer!: ImageViewer;
     // Менеджеры
     private videoPlayer!: VideoPlayer;
     private groupManager!: GroupManager;
@@ -32,6 +33,9 @@ class HomeManager {
         this.api = new ProfileAPI();
         this.initManagers();
         this.init();
+        
+        // Делаем HomeManager доступным глобально для MessageManager
+        (window as any).homeManager = this;
     }
 
     private checkAuth(): boolean {
@@ -45,14 +49,17 @@ class HomeManager {
     private initManagers(): void {
         this.videoPlayer = new VideoPlayer();
         this.groupManager = new GroupManager(this.api, this);
-        this.fileUploader = new FileUploader(
-            this.api,
-            (url: string, file: File) => this.onFileUploadComplete(url, file),
-            (error: string) => this.showError(error),
-            () => this.currentChat?.id || null
-        );
+        // В конструкторе HomeManager:
+this.fileUploader = new FileUploader(
+    this.api,
+    (url: string, file: File) => this.onFileUploadComplete(url, file),
+    (error: string) => this.showError(error),
+    () => this.currentChat?.id || null,
+    () => this.currentUser // 🔴 ДОБАВИТЬ ЭТУ СТРОЧКУ
+);
         this.profileManager = new ProfileManager(this.api, this.groupManager);
         this.messageManager = new MessageManager(this.api, this.videoPlayer);
+        this.imageViewer = new ImageViewer();
     }
 
     private async init(): Promise<void> {
@@ -77,19 +84,19 @@ class HomeManager {
             this.messageManager.setupMessageActions();
             
         } catch (error) {
-            console.error('❌ HomeManager initialization failed:', error);
+            console.error('HomeManager initialization failed:', error);
             this.handleAuthError(error);
         }
     }
     
     private handleAuthError(error: any): void {
-        console.error('🔐 Auth error:', error);
-        
         if (error.message?.includes('401') || error.message?.includes('JWT') || error.message?.includes('token')) {
             authManager.logout();
             window.location.href = 'index.html';
         }
     }
+
+    
 
     private async loadUserData(): Promise<void> {
         try {
@@ -97,7 +104,7 @@ class HomeManager {
             this.updateUserUI();
             
         } catch (error) {
-            console.error('❌ Failed to load user:', error);
+            console.error('Failed to load user:', error);
             throw error;
         }
     }
@@ -151,15 +158,15 @@ class HomeManager {
             if (fileType === 'video') {
                 const shortDescription = this.fileUploader.getFileShortDescription(fileType, file.name);
                 this.updateChatPosition(this.currentChat!.id, shortDescription);
-                try {
-                    const messages = await this.api.getMessages(this.currentChat.id);
-                    await this.messageManager.renderMessages(messages);
-                    this.scrollToBottom();
-                } catch (error) {
-                    console.error('Failed to reload messages:', error);
-                }
-            } else {
-                this.sendMessageWithFile(url, file);
+            }
+            
+            // Автоматически перезагружаем сообщения чтобы показать новое
+            try {
+                const messages = await this.api.getMessages(this.currentChat.id);
+                await this.messageManager.renderMessages(messages);
+                this.scrollToBottom();
+            } catch (error) {
+                console.error('Failed to reload messages:', error);
             }
         }
     }
@@ -167,7 +174,35 @@ class HomeManager {
     private sendMessageWithFile(fileUrl: string, file: File): void {
         // Для не-видео файлов можно добавить отправку через WebSocket
         // если потребуется
-        console.log('File uploaded:', fileUrl, file);
+    }
+
+    public updateChatPositionOnNewMessage(chatId: number, lastMessage: string): void {
+        const chatIndex = this.chats.findIndex(chat => chat.id === chatId);
+        
+        if (chatIndex > -1) {
+            const chatToUpdate = this.chats[chatIndex];
+            const formattedLastMessage = this.formatLastMessageForChatList(lastMessage);
+            
+            // Обновляем последнее сообщение
+            chatToUpdate.last_message = formattedLastMessage;
+            chatToUpdate.lastMessage = formattedLastMessage;
+            
+            // Перемещаем чат в начало списка только если он не уже первый
+            if (chatIndex > 0) {
+                this.chats.splice(chatIndex, 1);
+                this.chats.unshift(chatToUpdate);
+                this.renderChats();
+            } else {
+                // Если чат уже первый, просто обновляем текст последнего сообщения
+                this.updateChatElement(chatId, formattedLastMessage);
+            }
+            
+            // Обновляем currentChat если он активен
+            if (this.currentChat && this.currentChat.id === chatId) {
+                this.currentChat.last_message = formattedLastMessage;
+                this.currentChat.lastMessage = formattedLastMessage;
+            }
+        }
     }
 
     private async loadChats(): Promise<void> {
@@ -180,7 +215,7 @@ class HomeManager {
                 this.chatOffset += newChats.length;
             }
         } catch (error) {
-            console.error('❌ Failed to load chats:', error);
+            console.error('Failed to load chats:', error);
             throw error;
         }
     }
@@ -254,7 +289,8 @@ class HomeManager {
         }
     }
 
-    public async selectChat(chat: Chat): Promise<void> {    
+    public async selectChat(chat: Chat): Promise<void> {
+            
         this.setCurrentChat(chat);
         
         this.messageManager.setCurrentChat(chat);
@@ -292,7 +328,7 @@ class HomeManager {
     private renderChats(): void {
         const chatsList = document.getElementById('chatsList');
         if (!chatsList) {
-            console.error('❌ chatsList element not found!');
+            console.error('chatsList element not found!');
             return;
         }
 
@@ -559,6 +595,8 @@ class HomeManager {
         
         return [] as unknown as T;
     }
+
+    
 
     private escapeHtml(unsafe: any): string {
         if (!unsafe) return '';

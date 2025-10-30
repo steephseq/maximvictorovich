@@ -1,6 +1,6 @@
 package verification
 
-import (
+/*import (
 	"errors"
 	"log"
 	"net/http"
@@ -45,3 +45,4 @@ func SendCodeHandler(request verificationModels.VerificationRequest, r *http.Req
 
 	return nil, 0, code
 }
+*/

@@ -1,0 +1,57 @@
+/* ===== RESPONSIVE DESIGN ===== */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 100%;
+        transform: translateX(-100%);
+    }
+    
+    .sidebar.active {
+        transform: translateX(0);
+    }
+    
+    .home-container {
+        flex-direction: column;
+    }
+    
+    .main-content {
+        display: none;
+    }
+    
+    .chat-item {
+        padding: 0.75rem;
+    }
+    
+    .message {
+        max-width: 85%;
+        padding: 0.6rem 0.9rem;
+    }
+    
+    .chat-header {
+        padding: 0.75rem 1rem;
+    }
+    
+    .message-input-container {
+        padding: 0.75rem 1rem;
+    }
+    
+    .messages-container {
+        padding: 0.75rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .message-image,
+    .message-video {
+        max-width: min(280px, 85vw);
+        max-height: 200px;
+        border-radius: 8px;
+        min-width: 100px;
+        min-height: 60px;
+    }
+    
+    .modal-content {
+        width: 95%;
+        max-height: 85vh;
+        margin: 10px;
+    }
+}

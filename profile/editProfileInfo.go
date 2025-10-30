@@ -51,6 +51,7 @@ func SetXUnivesalHandler(w http.ResponseWriter, r *http.Request) {
 		services.ResponseFunc(w, http.StatusUnauthorized, "invalid token", nil)
 		return
 	}
+	log.Printf("editProfileInfo:parameterName:%v", parameterName)
 	if err := checkRights(parameterName, int(userID), parameterName.Action); err != nil {
 		if errors.Is(err, ErrForbidden) {
 			services.ResponseFunc(w, http.StatusForbidden, "user havent rights", nil)
@@ -81,12 +82,10 @@ func setX(newParameter profileModels.NewProfileParameter, column string) error {
 }
 
 func checkRights(newParameter profileModels.NewProfileParameter, uid int, action string) error {
-	log.Println(newParameter)
 	if newParameter.IsGroup {
 		canAction, err := database.CanUserX(uid, newParameter.OwnerID, action)
 		if err != nil {
-			log.Println(err)
-			log.Println("failed to check ")
+			log.Printf("editProfileInfo: failed to check rights for user %d: %v", uid, err)
 			return err
 		}
 		if !canAction {

@@ -1,6 +1,8 @@
 package database
 
 import (
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -14,8 +16,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/joho/godotenv"
 )
 
 func GetChatsForHomePage(userID int, offset time.Time) ([]chatsModels.Chat, error) {
@@ -133,6 +133,8 @@ LIMIT 15`
 			continue
 		}
 		allChats[i].IsOnline = exists
+		url := services.GetAvatarURL(*allChats[i].AvatarURL)
+		allChats[i].AvatarURL = &url
 	}
 	return allChats, nil
 }
@@ -163,9 +165,9 @@ func CreateChat(c chatsModels.CreateChatRequest) (int, error) {
 
 func setDefaulAvatar(c *chatsModels.CreateChatRequest) {
 	if c.Is_group {
-		c.Avatar = "https://storage.yandexcloud.net/imagesmaxim/avatars/group.jpg"
+		c.Avatar = "group.jpg"
 	} else {
-		c.Avatar = "https://storage.yandexcloud.net/imagesmaxim/avatars/1x1.jpg"
+		c.Avatar = "1x1.jpg"
 	}
 }
 func AddUserIntoChat(chatID int, userIDs []int, r *http.Request) (added []int, alreadyExists []int, err error) {
@@ -262,30 +264,99 @@ func GetMessages(chatID uint64) ([]chatsModels.Message, error) {
 		m.is_ready,
 		m.type,
 		m.answer,
-		t.filename
+		m.duration,
+		m.filename,
+		t.filename as thumbnail
 		FROM messages m
 	    JOIN users u ON m.user_id=u.id
 		LEFT JOIN thumbnails t ON t.message_id=m.id 
 		WHERE chat_id=$1 AND m.is_ready=true
 		ORDER BY m.created_at ASC`, chatID)
 
-	if err := godotenv.Load(); err != nil {
-		return messagesList, err
-	}
 	baseURL := os.Getenv("CLOUD_URL")
 	if baseURL == "" {
 		return messagesList, errors.New("CLOUD_URL not found")
 	}
+
+	bucket := os.Getenv("CLOUD_BUCKET")
+	if bucket == "" {
+		return messagesList, errors.New("CLOUD_BUCKET not found")
+	}
+
 	for i := range messagesList {
-		if messagesList[i].Type == "video" || messagesList[i].Type == "image" {
-			messagesList[i].Content = fmt.Sprintf("%smessages/%v", baseURL, messagesList[i].Content)
+		filename := getStringFromNullString(messagesList[i].Filename)
+		thumbnail := getStringFromNullString(messagesList[i].Thumbnail)
+		if filename != "" {
+			url := fmt.Sprintf("%s%smessages/%s", baseURL, bucket, filename)
+			messagesList[i].URL = sql.NullString{String: url, Valid: true}
 		}
-		if messagesList[i].Filename != nil && *messagesList[i].Filename != "" {
-			fullURL := baseURL + "miniatures/" + *messagesList[i].Filename
-			messagesList[i].Filename = &fullURL
+		if thumbnail != "" {
+			thumbURL := fmt.Sprintf("%s%sminiatures/%s", baseURL, bucket, thumbnail)
+			messagesList[i].Thumbnail = sql.NullString{String: thumbURL, Valid: true}
 		}
 	}
 	return messagesList, err
+}
+
+func getStringFromNullString(nullStr sql.NullString) string {
+	if nullStr.Valid {
+		return nullStr.String
+	}
+	return ""
+}
+
+func MarshalMessage(msg *chatsModels.Message) ([]byte, error) {
+	type Alias chatsModels.Message
+	return json.Marshal(&struct {
+		*Alias
+		Filename  interface{} `json:"filename"`
+		Answer    interface{} `json:"answer"`
+		URL       interface{} `json:"url"`
+		Thumbnail interface{} `json:"thumbnail"`
+		Duration  interface{} `json:"duration"`
+	}{
+		Alias:     (*Alias)(msg),
+		Filename:  getFilename(msg),
+		Answer:    getAnswer(msg),
+		URL:       getURL(msg),
+		Thumbnail: getThumbnail(msg),
+		Duration:  getDuration(msg),
+	})
+}
+
+func getFilename(msg *chatsModels.Message) interface{} {
+	if msg.Filename.Valid {
+		return msg.Filename.String
+	}
+	return nil
+}
+
+func getAnswer(msg *chatsModels.Message) interface{} {
+	if msg.Answer.Valid {
+		return msg.Answer.String
+	}
+	return nil
+}
+
+func getURL(msg *chatsModels.Message) interface{} {
+	if msg.URL.Valid {
+		return msg.URL.String
+	}
+	return nil
+}
+
+func getThumbnail(msg *chatsModels.Message) interface{} {
+	if msg.Thumbnail.Valid {
+		return msg.Thumbnail.String
+	}
+	return nil
+}
+
+func getDuration(msg *chatsModels.Message) interface{} {
+	if msg.Duration.Valid {
+		return msg.Duration.Int64
+	}
+	return nil
 }
 
 func SaveMessageToDB(msg chatsModels.Message) (int, error) {
@@ -293,8 +364,8 @@ func SaveMessageToDB(msg chatsModels.Message) (int, error) {
 	var id int
 	rows, err := DB.NamedQuery(`INSERT 
 	INTO messages 
-	(chat_id,user_id,content,created_at,is_ready,type) 
-	VALUES (:chat_id,:user_id,:content,:created_at,:is_ready,:type)
+	(chat_id,user_id,content,created_at,is_ready,type,filename) 
+	VALUES (:chat_id,:user_id,:content,:created_at,:is_ready,:type,:filename)
 	RETURNING id`, &msg)
 	if err != nil {
 		return 0, err
@@ -311,13 +382,50 @@ func SaveMessageToDB(msg chatsModels.Message) (int, error) {
 	return id, nil
 }
 
-func UpdateMessage(id int, content string, isReady bool) error {
-	query := `UPDATE messages
-			SET content=$1, is_ready=$2
-			WHERE id=$3`
-	_, err := DB.Exec(query, content, isReady, id)
+func UpdateMessage(msg chatsModels.Message) error {
+	author, err := WhoAuthorMessage(msg.ID)
+	if err != nil {
+		return err
+	}
+	if author != msg.UserId {
+		return errors.New("user cant edit this message")
+	}
+	var (
+		sets       []string
+		args       []interface{}
+		paramCount int
+	)
+	if msg.Duration.Valid {
+		paramCount++
+		sets = append(sets, fmt.Sprintf("duration=$%d", paramCount))
+		args = append(args, msg.Duration.Int64)
+	}
+
+	if msg.Filename.Valid {
+		paramCount++
+		sets = append(sets, fmt.Sprintf("filename=$%d", paramCount))
+		args = append(args, msg.Filename.String)
+	}
+
+	if msg.IsReady {
+		paramCount++
+		sets = append(sets, fmt.Sprintf("is_ready=$%d", paramCount))
+		args = append(args, msg.IsReady)
+	}
+
+	if len(sets) == 0 {
+		return errors.New("no fields to update")
+	}
+
+	paramCount++
+	query := fmt.Sprintf("UPDATE messages SET %s WHERE id=$%d",
+		strings.Join(sets, ", "), paramCount)
+	args = append(args, msg.ID)
+
+	_, err = DB.Exec(query, args...)
 	return err
 }
+
 func DeleteUserFromChat(chatID, userID int) error {
 	query := `DELETE FROM chats_users
 			WHERE chat_id = $1 AND user_id = $2`
@@ -380,19 +488,19 @@ func DeleteMessage(Action chatsModels.ActionInChat) error {
 	return err
 }
 
-func WhoAuthorMessage(messid int, chatid int) (int, error) {
+func WhoAuthorMessage(messid int) (int, error) {
 	query := `SELECT user_id
-		 FROM messages WHERE id=$1 AND chat_id=$2`
+		 FROM messages WHERE id=$1`
 
 	var authorID int
-	err := DB.Get(&authorID, query, messid, chatid)
+	err := DB.Get(&authorID, query, messid)
 	return authorID, err
 }
 
 func GetAvailableMessageActions(uid int, chatid int, messid int) (chatsModels.AvaliableActionsMessage, error) {
 	var actions chatsModels.AvaliableActionsMessage
 
-	authorID, err := WhoAuthorMessage(messid, chatid)
+	authorID, err := WhoAuthorMessage(messid)
 	if err != nil {
 		return actions, err
 	}

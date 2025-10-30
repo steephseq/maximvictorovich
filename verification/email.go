@@ -129,7 +129,7 @@ func IsCodeAlreadySend(email string) (bool, error) {
 }
 
 func GetCodeTTL(email string) (time.Duration, error) {
-	return redis.RedisClient.TTL(redis.Ctx, "verify:"+email).Result()
+	return redis.RedisClient.TTL(redis.Ctx, fmt.Sprintf("verification:%s", email)).Result()
 }
 
 func getEnv(key string) string {

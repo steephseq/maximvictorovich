@@ -1,0 +1,82 @@
+/* ===== EMPTY STATES COMPONENT ===== */
+.empty-chat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    text-align: center;
+    padding: 2rem 1rem;
+    color: #a78bfa;
+    animation: fadeIn 0.6s ease;
+}
+
+.empty-chat i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #7c3aed;
+    opacity: 0.7;
+    animation: float 3s ease-in-out infinite;
+}
+
+.empty-chat p {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #f8fafc;
+    margin-bottom: 0.75rem;
+    background: linear-gradient(135deg, #f8fafc 0%, #c4b5fd 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.empty-chat span {
+    font-size: 1rem;
+    color: #a78bfa;
+    margin-bottom: 1.5rem;
+    max-width: 300px;
+    line-height: 1.4;
+}
+
+.message-uploading {
+    opacity: 0.8;
+}
+
+.message-uploading .upload-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem;
+}
+
+.upload-spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid #f3f4f6;
+    border-top: 2px solid #8b5cf6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.upload-progress {
+    font-size: 0.8rem;
+    color: #8b5cf6;
+    font-weight: 600;
+}
+
+.upload-text {
+    font-size: 0.8rem;
+    color: #6b7280;
+}
+
+.upload-complete {
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+/* Специфичные стили для загрузки голосовых */
+.voice-upload-container {
+    background: rgba(139, 92, 246, 0.1);
+    border-radius: 12px;
+    padding: 1rem;
+}

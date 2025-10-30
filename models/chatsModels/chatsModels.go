@@ -9,16 +9,19 @@ import (
 )
 
 type Message struct {
-	ID        int         `json:"id" db:"id"`
-	ChatId    int         `json:"chat_id" db:"chat_id"`
-	UserId    int         `json:"user_id" db:"user_id"`
-	Name      string      `json:"name" db:"name"` //name msg author in chat
-	Content   interface{} `json:"content" db:"content"`
-	CreatedAt time.Time   `json:"created_at" db:"created_at"`
-	Filename  *string     `json:"filename" db:"filename"` // Thumbnail filename
-	IsReady   bool        `json:"is_ready" db:"is_ready"`
-	Type      string      `json:"type" db:"type"`
-	Answer    *int        `json:"answer" db:"answer"`
+	ID        int            `json:"id" db:"id"`
+	ChatId    int            `json:"chat_id" db:"chat_id"`
+	UserId    int            `json:"user_id" db:"user_id"`
+	Name      string         `json:"name" db:"name"` //name msg author in chat
+	Content   interface{}    `json:"content" db:"content"`
+	CreatedAt time.Time      `json:"created_at" db:"created_at"`
+	Filename  sql.NullString `json:"filename" db:"filename"` // Thumbnail filename
+	IsReady   bool           `json:"is_ready" db:"is_ready"`
+	Type      string         `json:"type" db:"type"`
+	Answer    sql.NullString `json:"answer" db:"answer"`
+	Duration  sql.NullInt64  `json:"duration" db:"duration"`
+	URL       sql.NullString `json:"url" db:"url"`
+	Thumbnail sql.NullString `json:"thumbnail" db:"thumbnail"`
 }
 
 type Chat struct {

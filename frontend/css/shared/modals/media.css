@@ -1,0 +1,15 @@
+/* Image Viewer Modal */
+.image-viewer-modal {
+    background: transparent;
+}
+
+.image-viewer-content {
+    position: relative;
+    width: 90%;
+    height: 90%;
+    max-width: 1200px;
+    max-height: 800px;
+    background: rgba(26, 16, 51, 0.9);
+    border-radius: 16px;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+}

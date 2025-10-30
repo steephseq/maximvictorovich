@@ -87,14 +87,14 @@ func setDefaultUserAvatar(u *usersModels.User) {
 
 func UpdateAvatar(avatar cloudModels.Avatar) error {
 	query := `UPDATE avatars SET is_current=false 
-			WHERE owner_type=$1 AND owner_id=$2`
-	_, err := DB.Exec(query, avatar.OwnerType, avatar.OwnerID)
+			WHERE is_group=$1 AND owner_id=$2`
+	_, err := DB.Exec(query, avatar.IsGroup, avatar.OwnerID)
 	if err != nil {
 		return err
 	}
 
-	query = `INSERT INTO avatars (url,owner_type,owner_id,is_current,created_at)
-				VALUES (:url,:owner_type,:owner_id,:is_current,:created_at)`
+	query = `INSERT INTO avatars (url,is_group,owner_id,is_current,created_at)
+				VALUES (:url,:is_group,:owner_id,:is_current,:created_at)`
 	avatar.IsCurrent = true
 	avatar.CreatedAt = time.Now()
 	_, err = DB.NamedExec(query, avatar)

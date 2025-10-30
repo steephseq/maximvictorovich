@@ -2,6 +2,7 @@ package database
 
 import (
 	"log"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
@@ -29,12 +30,14 @@ func InitDB() error {
 
 		return DB
 	*/
-
 	var err error
-	DB, err = sqlx.Connect("postgres", "user=postgres password=postgres dbname=postgres sslmode=disable")
+	DB, err = sqlx.Connect("postgres", "host=mypostgres user=postgres password=postgres dbname=postgres sslmode=disable port=5432")
 	if err != nil {
-		log.Fatalf("failed to open connection with DB: %v", err)
-		return err
+		log.Printf("failed to open connection with DB: %v", err)
+		time.Sleep(5 * time.Second)
+		return InitDB()
 	}
 	return nil
 }
+
+//host=mypostgres

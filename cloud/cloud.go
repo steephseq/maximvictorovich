@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"strconv"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
@@ -14,13 +12,12 @@ import (
 	//"github.com/aws/aws-sdk-go-v2/aws/credentials"
 )
 
-func UploadFile(ctx context.Context, s3Client *s3.Client, bucket string, file io.Reader, filename string, folder string) (string, error) {
+func UploadFile(ctx context.Context, s3Client *s3.Client, bucket string, file io.Reader, filename string, folder string, timeStamp string) (string, error) {
 	ext := filepath.Ext(filename)
 	if ext == "" {
 		ext = ".dat"
 	}
 
-	timeStamp := strconv.FormatInt(time.Now().UnixNano(), 10)
 	key := fmt.Sprintf("%s/%s%s", folder, timeStamp, ext)
 	upload := manager.NewUploader(s3Client)
 

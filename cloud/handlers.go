@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -20,15 +22,10 @@ func SetAvatarHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var avatar cloudModels.Avatar
-	avatar.OwnerType = r.FormValue("owner_type")
+	avatar.IsGroup, _ = strconv.ParseBool(r.FormValue("is_group"))
 	ownerIDStr := r.FormValue("owner_id")
 	ownerID, _ := strconv.Atoi(ownerIDStr)
 	avatar.OwnerID = ownerID
-
-	if avatar.OwnerType != "user" && avatar.OwnerType != "chat" {
-		services.ResponseFunc(w, http.StatusBadRequest, "invalid owner type", nil)
-		return
-	}
 
 	if err := godotenv.Load(); err != nil {
 		log.Fatal(err)
@@ -53,7 +50,7 @@ func SetAvatarHandler(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	ctx, s3Client := NewYandexStorage(bucket)
-	url, err := UploadFile(ctx, s3Client, bucket, file, header.Filename, "avatars")
+	url, err := UploadFile(ctx, s3Client, bucket, file, header.Filename, "avatars", strconv.FormatInt(time.Now().UnixNano(), 10))
 	if err != nil {
 		log.Printf("%v", err)
 		services.ResponseFunc(w, http.StatusInternalServerError, "failed to upload avatar", nil)
@@ -61,7 +58,7 @@ func SetAvatarHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := r.Context().Value(JWTModels.UserIDKey).(uint)
-	if avatar.OwnerType != "chat" {
+	if avatar.IsGroup {
 		canChangeAvatar, err := database.CanUserX(int(userID), avatar.OwnerID, "can_change_avatar")
 		if err != nil {
 			log.Println(err)
@@ -76,11 +73,12 @@ func SetAvatarHandler(w http.ResponseWriter, r *http.Request) {
 			avatar.OwnerID = int(userID)
 		}
 	}
-	avatar.URL = url
+
+	avatar.URL = strings.TrimPrefix(url, "avatars/")
 	if err = database.UpdateAvatar(avatar); err != nil {
 		services.ResponseFunc(w, http.StatusInternalServerError, "failed to update user avatar", nil)
 		return
 	}
 
-	services.ResponseFunc(w, http.StatusOK, "successful new avatar", map[string]string{"url": url})
+	services.ResponseFunc(w, http.StatusOK, "successful new avatar", map[string]string{"url": avatar.URL})
 }
